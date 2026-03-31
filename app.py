@@ -1234,6 +1234,11 @@ def main():
                 (df_sch["次回アクション日"] <= sch_end + timedelta(days=1))
             ]
 
+            ACTION_TARGETS = ["プレ予定", "再プレ予定", "契約予定"]
+            # 営業日→次回アクション日の空き日数を計算
+            if "営業日" in df_sch.columns:
+                df_sch["空き日数"] = (df_sch["次回アクション日"] - df_sch["営業日"]).dt.days
+
             # 全体 + チームのビュー構築
             views_sch = [("全体", df_sch)]
             for tname in team_names_cfg:
@@ -1243,11 +1248,6 @@ def main():
 
             view_labels = [v[0] for v in views_sch]
             view_tabs   = st.tabs(view_labels)
-
-            ACTION_TARGETS = ["プレ予定", "再プレ予定", "契約予定"]
-            # 営業日→次回アクション日の空き日数を計算
-            if "営業日" in df_sch.columns:
-                df_sch["空き日数"] = (df_sch["次回アクション日"] - df_sch["営業日"]).dt.days
 
             show_cols = [c for c in ["次回アクション日", "予定種別", "営業担当者", "顧客名", "報告種別", "結果", "空き日数"] if c in df_sch.columns]
 
