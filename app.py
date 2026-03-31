@@ -729,13 +729,12 @@ def main():
                 st.success(f"取得完了：{len(df_all):,}行")
             except Exception as e:
                 st.error(f"取得エラー：{e}")
-                st.info("スプレッドシートが取得できませんでした。URLを確認してください。")
-                return
-    elif uploaded_file is not None:
+                st.info("スプレッドシートが取得できませんでした。CSVアップロードをお試しください。")
+
+    if uploaded_file is not None:
         df_all = load_data(uploaded_file)
         df_all = normalize_columns(df_all)
         st.session_state["df_cache"] = df_all
-        st.session_state["data_source"] = "csv"
     elif "df_cache" in st.session_state:
         df_all = st.session_state["df_cache"]
     else:
@@ -943,7 +942,12 @@ def main():
             d_period_key = "period_jisshi" if "実施" in debug_base else "period_hassei"
             d_period = st.session_state.get(d_period_key, "1週間")
             d_days = {"3日": 3, "1週間": 7, "2週間": 14}
-            d_start = today - timedelta(days=d_days.get(d_period, 7))
+            if d_period == "その他":
+                d_start_key = "period_s_jisshi" if "実施" in debug_base else "period_s_hassei"
+                d_start_val = st.session_state.get(d_start_key)
+                d_start = pd.Timestamp(d_start_val) if d_start_val else today - timedelta(days=7)
+            else:
+                d_start = today - timedelta(days=d_days.get(d_period, 7))
             d_df = df_all[df_all["営業日"] >= d_start].copy()
             if selected_person != "全員" and "営業担当者" in d_df.columns:
                 d_df = d_df[d_df["営業担当者"] == selected_person]
