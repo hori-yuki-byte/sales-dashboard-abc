@@ -620,7 +620,7 @@ def main():
         st.divider()
         page = st.radio(
             "ページ",
-            ["📈 ダッシュボード", "👥 チーム比較"],
+            ["📈 ダッシュボード", "👥 チーム比較", "📅 予定管理"],
             horizontal=True,
             key="page_select",
         )
@@ -1163,6 +1163,134 @@ def main():
                 })
             st.subheader(f"チーム別集計（{h_label2}）")
             render_compare_section(pd.DataFrame(h_rows), "h", h_label2)
+
+
+    # =============================================
+    # ページ3：予定管理
+    # =============================================
+    elif page == "📅 予定管理":
+        st.markdown("## 📅 予定管理")
+        st.caption("次回アクション日をもとに、プレ・再プレ・次回契約予定の件数とリストを確認できます")
+
+        df_raw = st.session_state.get("df_cache", pd.DataFrame())
+        all_teams_cfg = load_teams()
+        team_names_cfg = [t for t in all_teams_cfg if t != "__hidden__"]
+
+        if df_raw.empty or "次回アクション日" not in df_raw.columns:
+            st.warning("データを取得してください")
+        else:
+            # 次回アクション日を日付型に変換
+            df_sch = df_raw.copy()
+            df_sch["次回アクション日"] = pd.to_datetime(df_sch["次回アクション日"], errors="coerce")
+            df_sch = df_sch.dropna(subset=["次回アクション日"])
+
+            # 予定種別を判定する列を追加
+            # 結果：プレ日程確定→プレ予定 / 再プレ日程確定→再プレ予定 / 次回契約予定→契約予定
+            # 結果：リスケ日程確定 → 報告種別がプレ→プレ予定 / 再プレ→再プレ予定
+            def classify_yotei(row):
+                ketsu = str(row.get("結果", "")) if pd.notna(row.get("結果")) else ""
+                hoko  = str(row.get("報告種別", "")) if pd.notna(row.get("報告種別")) else ""
+                if "プレ日程確定" in ketsu and "再プレ" not in ketsu:
+                    return "プレ予定"
+                if "再プレ日程確定" in ketsu:
+                    return "再プレ予定"
+                if "次回契約予定" in ketsu:
+                    return "契約予定"
+                if "リスケ日程確定" in ketsu:
+                    if re.search(r"^再プレ$", hoko):
+                        return "再プレ予定"
+                    if re.search(r"^プレ$", hoko):
+                        return "プレ予定"
+                return None
+
+            df_sch["予定種別"] = df_sch.apply(classify_yotei, axis=1)
+            df_sch = df_sch.dropna(subset=["予定種別"])
+
+            # 期間選択
+            sch_period = st.radio(
+                "表示期間",
+                ["今日", "1週間", "その他"],
+                horizontal=True,
+                key="sch_period",
+            )
+            if sch_period == "今日":
+                sch_start = today
+                sch_end   = today
+            elif sch_period == "1週間":
+                sch_start = today
+                sch_end   = today + timedelta(weeks=1)
+            else:
+                sc1, sc2 = st.columns(2)
+                sch_sd = sc1.date_input("開始日", value=today.date(), min_value=DATE_MIN, max_value=DATE_MAX, key="sch_s")
+                sch_ed = sc2.date_input("終了日", value=(today + timedelta(weeks=1)).date(), min_value=DATE_MIN, max_value=DATE_MAX, key="sch_e")
+                sch_start = pd.Timestamp(sch_sd)
+                sch_end   = pd.Timestamp(sch_ed)
+
+            sch_label = f"{sch_start.strftime('%m/%d')}〜{sch_end.strftime('%m/%d')}"
+
+            # 期間フィルター
+            df_sch = df_sch[
+                (df_sch["次回アクション日"] >= sch_start) &
+                (df_sch["次回アクション日"] <= sch_end + timedelta(days=1))
+            ]
+
+            # 全体 + チームのビュー構築
+            views_sch = [("全体", df_sch)]
+            for tname in team_names_cfg:
+                members = all_teams_cfg[tname]
+                if members and "営業担当者" in df_sch.columns:
+                    views_sch.append((tname, df_sch[df_sch["営業担当者"].isin(members)]))
+
+            view_labels = [v[0] for v in views_sch]
+            view_tabs   = st.tabs(view_labels)
+
+            ACTION_TARGETS = ["プレ予定", "再プレ予定", "契約予定"]
+            # 営業日→次回アクション日の空き日数を計算
+            if "営業日" in df_sch.columns:
+                df_sch["空き日数"] = (df_sch["次回アクション日"] - df_sch["営業日"]).dt.days
+
+            show_cols = [c for c in ["次回アクション日", "予定種別", "営業担当者", "顧客名", "報告種別", "結果", "空き日数"] if c in df_sch.columns]
+
+            def style_rows(df_display):
+                """空き日数が8日以上の行をオレンジ背景にする"""
+                def row_style(row):
+                    if "空き日数" in row.index and pd.notna(row["空き日数"]) and row["空き日数"] >= 8:
+                        return ["background-color: #FFE0B2; color: #000"] * len(row)
+                    return [""] * len(row)
+                return df_display.style.apply(row_style, axis=1)
+
+            for (label, df_v), vtab in zip(views_sch, view_tabs):
+                with vtab:
+                    st.subheader(f"予定一覧（{sch_label} / {label}）")
+
+                    if df_v.empty:
+                        st.info("該当する予定がありません")
+                        continue
+
+                    # サマリー件数（予定種別ごと）
+                    summary_cols = st.columns(len(ACTION_TARGETS))
+                    for i, action in enumerate(ACTION_TARGETS):
+                        count = (df_v["予定種別"] == action).sum()
+                        summary_cols[i].metric(action, f"{count}件")
+
+                    if "空き日数" in df_v.columns:
+                        overdue = (df_v["空き日数"] >= 8).sum()
+                        if overdue > 0:
+                            st.warning(f"🟠 営業日から8日以上経過：{overdue}件")
+
+                    st.divider()
+
+                    # 営業担当者を軸にリスト表示
+                    if "営業担当者" in df_v.columns:
+                        for person, grp in df_v.sort_values("次回アクション日").groupby("営業担当者"):
+                            disp = grp[show_cols].sort_values("次回アクション日").reset_index(drop=True)
+                            overdue_count = (disp["空き日数"] >= 8).sum() if "空き日数" in disp.columns else 0
+                            label_person = f"👤 {person}（{len(grp)}件）" + (f"　🟠{overdue_count}件超過" if overdue_count > 0 else "")
+                            with st.expander(label_person, expanded=True):
+                                st.dataframe(style_rows(disp), use_container_width=True, hide_index=True)
+                    else:
+                        disp = df_v[show_cols].sort_values("次回アクション日")
+                        st.dataframe(style_rows(disp), use_container_width=True, hide_index=True)
 
 
 if __name__ == "__main__":
