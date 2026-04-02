@@ -301,8 +301,10 @@ def calc_ganchi(df):
 
     pre_ganchi    = len(pre_ids    & ganchi_ids)
     re_pre_ganchi = len(re_pre_ids & ganchi_ids)
-    pre_uu    = len(pre_ids)
-    re_pre_uu = len(re_pre_ids)
+
+    # 分母はKPIと同じプレUU・再プレUU（リスケ・日程確定除く）
+    pre_uu    = col_uu(df, "報告種別", PRE_PATTERN,    regex=True, exclude_col="結果", exclude_patterns=PRE_EXCLUDE_RESULTS)
+    re_pre_uu = col_uu(df, "報告種別", RE_PRE_PATTERN, regex=True, exclude_col="結果", exclude_patterns=PRE_EXCLUDE_RESULTS)
 
     return {
         "プレ言質UU":   pre_ganchi,
