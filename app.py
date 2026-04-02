@@ -944,13 +944,26 @@ def main():
             d_days = {"3日": 3, "1週間": 7, "2週間": 14}
             if d_period == "その他":
                 d_start_key = "period_s_jisshi" if "実施" in debug_base else "period_s_hassei"
+                d_end_key   = "period_e_jisshi" if "実施" in debug_base else "period_e_hassei"
                 d_start_val = st.session_state.get(d_start_key)
+                d_end_val   = st.session_state.get(d_end_key)
                 d_start = pd.Timestamp(d_start_val) if d_start_val else today - timedelta(days=7)
+                d_end   = pd.Timestamp(d_end_val)   if d_end_val   else today
             else:
                 d_start = today - timedelta(days=d_days.get(d_period, 7))
-            d_df = df_all[df_all["営業日"] >= d_start].copy()
-            if selected_person != "全員" and "営業担当者" in d_df.columns:
-                d_df = d_df[d_df["営業担当者"] == selected_person]
+                d_end   = today
+
+            if "発生" in debug_base:
+                # 発生ベース：アポ起点コホートを使う
+                d_src = df_all if selected_person == "全員" else df_all[df_all["営業担当者"] == selected_person] if "営業担当者" in df_all.columns else df_all
+                d_df, _ = build_hassei_df(d_src, d_start, d_end)
+                if not d_df.empty and selected_person != "全員" and "営業担当者" in d_df.columns:
+                    d_df = d_df[d_df["営業担当者"] == selected_person]
+            else:
+                # 実施ベース：営業日で絞る
+                d_df = df_all[(df_all["営業日"] >= d_start) & (df_all["営業日"] <= d_end)].copy()
+                if selected_person != "全員" and "営業担当者" in d_df.columns:
+                    d_df = d_df[d_df["営業担当者"] == selected_person]
 
             PAT_MAP = {
                 "プレ":    (PRE_PATTERN,          "報告種別", PRE_EXCLUDE_RESULTS),
