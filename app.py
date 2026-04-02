@@ -790,6 +790,9 @@ def main():
             start = today - timedelta(days=days)
             end   = today
         label = f"{period}　{start.strftime('%m/%d')}〜{end.strftime('%m/%d')}"
+        # デバッグ欄が同じ期間を使えるよう保存
+        st.session_state[f"_start_{section_key}"] = start
+        st.session_state[f"_end_{section_key}"]   = end
         return start, end, label
 
     def render_kpi_section(date_col: str, section_key: str, title: str, default_period: int):
@@ -939,19 +942,10 @@ def main():
             )
             debug_base = st.radio("ベース", ["実施ベース（営業日）", "発生ベース（タイムスタンプ）"], horizontal=True, key="debug_base")
 
-            d_period_key = "period_jisshi" if "実施" in debug_base else "period_hassei"
-            d_period = st.session_state.get(d_period_key, "1週間")
-            d_days = {"3日": 3, "1週間": 7, "2週間": 14}
-            if d_period == "その他":
-                d_start_key = "period_s_jisshi" if "実施" in debug_base else "period_s_hassei"
-                d_end_key   = "period_e_jisshi" if "実施" in debug_base else "period_e_hassei"
-                d_start_val = st.session_state.get(d_start_key)
-                d_end_val   = st.session_state.get(d_end_key)
-                d_start = pd.Timestamp(d_start_val) if d_start_val else today - timedelta(days=7)
-                d_end   = pd.Timestamp(d_end_val)   if d_end_val   else today
-            else:
-                d_start = today - timedelta(days=d_days.get(d_period, 7))
-                d_end   = today
+            _base_key = "jisshi" if "実施" in debug_base else "hassei"
+            d_start = st.session_state.get(f"_start_{_base_key}", today - timedelta(days=7))
+            d_end   = st.session_state.get(f"_end_{_base_key}",   today)
+            st.caption(f"集計期間：{d_start.strftime('%m/%d')}〜{d_end.strftime('%m/%d')}")
 
             if "発生" in debug_base:
                 # 発生ベース：アポ起点コホートを使う
