@@ -937,7 +937,7 @@ def main():
         with st.expander("🔍 数値の内訳を確認する（デバッグ用）"):
             debug_metric = st.selectbox(
                 "確認したい指標",
-                ["プレ", "アポ", "再プレ", "プレ飛び", "契約", "失注"],
+                ["プレ", "アポ", "再プレ", "プレ飛び", "契約", "失注", "プレ言質", "再プレ言質"],
                 key="debug_metric"
             )
             debug_base = st.radio("ベース", ["実施ベース（営業日）", "発生ベース（タイムスタンプ）"], horizontal=True, key="debug_base")
@@ -960,23 +960,63 @@ def main():
                     d_df = d_df[d_df["営業担当者"] == selected_person]
 
             PAT_MAP = {
-                "プレ":    (PRE_PATTERN,          "報告種別", PRE_EXCLUDE_RESULTS),
-                "アポ":    (APO_PATTERN,           "報告種別", None),
-                "再プレ":  (RE_PRE_PATTERN,        "報告種別", PRE_EXCLUDE_RESULTS),
-                "プレ飛び": (PRE_NOSHOWN_PATTERN,  "報告種別", None),
-                "契約":    (CONTRACT_PATTERN,      "結果",     None),
-                "失注":    (LOST_PATTERN,          "報告種別", None),
+                "プレ":     (PRE_PATTERN,          "報告種別", PRE_EXCLUDE_RESULTS),
+                "アポ":     (APO_PATTERN,           "報告種別", None),
+                "再プレ":   (RE_PRE_PATTERN,        "報告種別", PRE_EXCLUDE_RESULTS),
+                "プレ飛び": (PRE_NOSHOWN_PATTERN,   "報告種別", None),
+                "契約":     (CONTRACT_PATTERN,      "結果",     None),
+                "失注":     (LOST_PATTERN,          "報告種別", None),
             }
-            pat, col, excl = PAT_MAP[debug_metric]
-            if col in d_df.columns:
-                mask = get_col(d_df, col).str.contains(pat, na=False, regex=True)
-                if excl and "結果" in d_df.columns:
-                    for ep in excl:
-                        mask &= ~get_col(d_df, "結果").str.contains(ep, na=False, regex=True)
-                d_result = d_df[mask]
-                show_cols = [c for c in ["営業日", "営業担当者", "顧客名", "報告種別", "結果"] if c in d_result.columns]
-                st.write(f"**{debug_metric}** の該当行：{len(d_result)}件 / UU：{get_col(d_result, '顧客ID').nunique() if '顧客ID' in d_result.columns else '-'}件")
-                st.dataframe(d_result[show_cols].sort_values("営業日", ascending=False), use_container_width=True, hide_index=True)
+
+            if debug_metric in ("プレ言質", "再プレ言質"):
+                # 言質系：calc_ganchiと同じロジックで顧客一覧を表示
+                pre_mask    = get_col(d_df, "報告種別").str.contains(PRE_PATTERN,    na=False, regex=True) if "報告種別" in d_df.columns else pd.Series(False, index=d_df.index)
+                re_pre_mask = get_col(d_df, "報告種別").str.contains(RE_PRE_PATTERN, na=False, regex=True) if "報告種別" in d_df.columns else pd.Series(False, index=d_df.index)
+                if "結果" in d_df.columns:
+                    for ep in PRE_EXCLUDE_RESULTS:
+                        excl_mask = get_col(d_df, "結果").str.contains(ep, na=False, regex=True)
+                        pre_mask    &= ~excl_mask
+                        re_pre_mask &= ~excl_mask
+                pre_re_df = d_df[pre_mask | re_pre_mask]
+                if not pre_re_df.empty and "顧客ID" in pre_re_df.columns:
+                    last_row = pre_re_df.sort_values("営業日").groupby("顧客ID").last().reset_index()
+                    last_row["is_pre"] = get_col(last_row, "報告種別").str.contains(PRE_PATTERN, na=False, regex=True)
+                    if debug_metric == "プレ言質":
+                        target_ids = set(get_col(last_row[last_row["is_pre"]], "顧客ID"))
+                    else:
+                        target_ids = set(get_col(last_row[~last_row["is_pre"]], "顧客ID"))
+                    ganchi_mask = (
+                        get_col(d_df, "結果").str.contains(CONTRACT_PATTERN,      na=False, regex=True)
+                        | get_col(d_df, "結果").str.contains(NEXT_CONTRACT_PATTERN, na=False, regex=True)
+                    ) if "結果" in d_df.columns else pd.Series(False, index=d_df.index)
+                    ganchi_ids = set(get_col(d_df[ganchi_mask], "顧客ID")) if "顧客ID" in d_df.columns else set()
+                    hit_ids = target_ids & ganchi_ids
+                    st.write(f"**{debug_metric}UU：{len(hit_ids)}件**　（最後のプレ/再プレ該当：{len(target_ids)}件 × 契約言質あり：{len(ganchi_ids)}件）")
+                    if hit_ids and "顧客ID" in d_df.columns:
+                        # 各顧客の最後のプレ/再プレ行と契約言質行を表示
+                        last_pre = last_row[last_row["顧客ID"].isin(hit_ids)][["顧客ID", "営業日", "報告種別"]].rename(columns={"営業日": "最終プレ/再プレ日"})
+                        ganchi_rows = d_df[ganchi_mask & d_df["顧客ID"].isin(hit_ids)].sort_values("営業日").groupby("顧客ID").last().reset_index()[["顧客ID", "営業日", "結果"]].rename(columns={"営業日": "言質日"})
+                        merged = last_pre.merge(ganchi_rows, on="顧客ID", how="left")
+                        if "顧客名" in d_df.columns:
+                            names = d_df[["顧客ID", "顧客名"]].drop_duplicates("顧客ID")
+                            merged = merged.merge(names, on="顧客ID", how="left")
+                        show = [c for c in ["顧客名", "顧客ID", "最終プレ/再プレ日", "報告種別", "言質日", "結果"] if c in merged.columns]
+                        st.dataframe(merged[show], use_container_width=True, hide_index=True)
+                    else:
+                        st.info("該当顧客なし")
+                else:
+                    st.info("プレ/再プレ行がありません")
+            elif debug_metric in PAT_MAP:
+                pat, col, excl = PAT_MAP[debug_metric]
+                if col in d_df.columns:
+                    mask = get_col(d_df, col).str.contains(pat, na=False, regex=True)
+                    if excl and "結果" in d_df.columns:
+                        for ep in excl:
+                            mask &= ~get_col(d_df, "結果").str.contains(ep, na=False, regex=True)
+                    d_result = d_df[mask]
+                    show_cols = [c for c in ["営業日", "営業担当者", "顧客名", "報告種別", "結果"] if c in d_result.columns]
+                    st.write(f"**{debug_metric}** の該当行：{len(d_result)}件 / UU：{get_col(d_result, '顧客ID').nunique() if '顧客ID' in d_result.columns else '-'}件")
+                    st.dataframe(d_result[show_cols].sort_values("営業日", ascending=False), use_container_width=True, hide_index=True)
 
         # =============================================
         # 直近1週間 DAY推移
