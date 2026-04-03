@@ -117,12 +117,15 @@ def fetch_from_sheets_url(url: str) -> pd.DataFrame:
     if response.status_code != 200:
         raise ConnectionError(f"取得失敗（ステータス: {response.status_code}）")
 
-    for enc in ("utf-8-sig", "shift_jis"):
+    raw = None
+    for enc in ("utf-8-sig", "shift_jis", "utf-8"):
         try:
             raw = response.content.decode(enc)
             break
         except Exception:
             continue
+    if raw is None:
+        raise ValueError("CSVのエンコーディングを特定できませんでした")
 
     return _parse_csv(raw)
 
@@ -929,7 +932,7 @@ def main():
 
         st.divider()
 
-        kpi = result_jisshi[0] if result_jisshi else {}
+        kpi = result_jisshi[0] if result_jisshi else None
         df_person = result_jisshi[1] if result_jisshi else pd.DataFrame()
         per_person_df = result_jisshi[2] if result_jisshi else pd.DataFrame()
 
@@ -1069,6 +1072,8 @@ def main():
 
         if not api_key:
             st.warning("サイドバーにClaude API Keyを入力するとAI分析が使えます")
+        elif kpi is None:
+            st.info("KPIデータがありません。データを取得してください")
         else:
             summary_text = build_summary_text(df_person, "実施ベース", kpi, per_person_df)
 
