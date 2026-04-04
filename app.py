@@ -1289,7 +1289,7 @@ def main():
             # 期間フィルター
             df_sch = df_sch[
                 (df_sch["次回アクション日"] >= sch_start) &
-                (df_sch["次回アクション日"] <= sch_end + timedelta(days=1))
+                (df_sch["次回アクション日"] <= sch_end + timedelta(hours=23, minutes=59, seconds=59))
             ]
 
             ACTION_TARGETS = ["プレ予定", "再プレ予定", "契約予定"]
