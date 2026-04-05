@@ -625,7 +625,7 @@ def main():
         st.divider()
         page = st.radio(
             "ページ",
-            ["📈 ダッシュボード", "👥 チーム比較", "📅 予定管理"],
+            ["📈 ダッシュボード", "👥 チーム比較", "📅 予定管理", "🤖 AIチャット"],
             horizontal=True,
             key="page_select",
         )
@@ -1349,6 +1349,123 @@ def main():
                     else:
                         disp = df_v[show_cols].sort_values("次回アクション日")
                         st.dataframe(style_rows(disp), use_container_width=True, hide_index=True)
+
+
+    # =============================================
+    # ページ4：AIチャット
+    # =============================================
+    elif page == "🤖 AIチャット":
+        st.markdown("## 🤖 AIチャット")
+        st.caption("スプレッドシートのデータをもとにClaudeに自由に質問できます")
+
+        if not api_key:
+            st.warning("サイドバーにClaude API Keyを入力してください")
+        else:
+            # ── データ準備 ──────────────────────────────
+            chat_df = df_all.copy()
+
+            # 期間フィルター（任意）
+            with st.expander("📅 データの絞り込み（任意）", expanded=False):
+                cc1, cc2, cc3 = st.columns(3)
+                chat_use_period = cc1.checkbox("期間で絞る", key="chat_use_period")
+                if chat_use_period:
+                    chat_sd = cc2.date_input("開始日", value=(today - timedelta(weeks=2)).date(), min_value=DATE_MIN, max_value=DATE_MAX, key="chat_sd")
+                    chat_ed = cc3.date_input("終了日", value=today.date(), min_value=DATE_MIN, max_value=DATE_MAX, key="chat_ed")
+                    if "営業日" in chat_df.columns:
+                        chat_df = chat_df[(chat_df["営業日"] >= pd.Timestamp(chat_sd)) & (chat_df["営業日"] <= pd.Timestamp(chat_ed))]
+
+                chat_use_person = cc1.checkbox("担当者で絞る", key="chat_use_person")
+                if chat_use_person and "営業担当者" in chat_df.columns:
+                    chat_persons = sorted(chat_df["営業担当者"].dropna().unique().tolist())
+                    chat_sel = cc2.multiselect("担当者", chat_persons, key="chat_persons")
+                    if chat_sel:
+                        chat_df = chat_df[chat_df["営業担当者"].isin(chat_sel)]
+
+                st.caption(f"対象データ：{len(chat_df):,}行 / {chat_df['顧客ID'].nunique() if '顧客ID' in chat_df.columns else '-'}顧客")
+
+            # Claudeに渡すデータサマリーを構築
+            def build_chat_context(df):
+                lines = [f"## 商談ログデータ（{len(df):,}行）\n"]
+
+                if "営業日" in df.columns:
+                    valid = df["営業日"].dropna()
+                    if not valid.empty:
+                        lines.append(f"- 期間：{valid.min().strftime('%Y/%m/%d')}〜{valid.max().strftime('%Y/%m/%d')}")
+
+                if "顧客ID" in df.columns:
+                    lines.append(f"- 総UU：{df['顧客ID'].nunique()}件")
+
+                if "営業担当者" in df.columns:
+                    persons = df["営業担当者"].dropna().unique().tolist()
+                    lines.append(f"- 担当者：{', '.join(persons)}")
+
+                kpi = calc_kpi(df)
+                lines.append(f"\n### KPI")
+                lines.append(f"- アポUU：{kpi['アポUU']}  プレUU：{kpi['プレUU']}  再プレUU：{kpi['再プレUU']}")
+                lines.append(f"- 契約UU：{kpi['契約UU']}  次回契約予定UU：{kpi['次回契約予定UU']}  失注UU：{kpi['失注UU']}")
+                lines.append(f"- 成約率：{kpi['成約率']}  プレ飛びUU：{kpi['プレ飛びUU']}  再プレ飛びUU：{kpi['再プレ飛びUU']}")
+
+                # 担当者別サマリー
+                if "営業担当者" in df.columns:
+                    lines.append(f"\n### 担当者別KPI")
+                    for person, grp in df.groupby("営業担当者"):
+                        pk = calc_kpi(grp)
+                        lines.append(f"- {person}：アポ{pk['アポUU']} プレ{pk['プレUU']} 再プレ{pk['再プレUU']} 契約{pk['契約UU']} 失注{pk['失注UU']} 成約率{pk['成約率']}")
+
+                # 生データの一部（最新50行）
+                show = [c for c in ["営業日", "営業担当者", "顧客名", "報告種別", "結果"] if c in df.columns]
+                if show:
+                    lines.append(f"\n### 直近データ（最新50行）")
+                    lines.append(df.sort_values("営業日", ascending=False).head(50)[show].to_string(index=False))
+
+                return "\n".join(lines)
+
+            chat_context = build_chat_context(chat_df)
+
+            # ── クイック質問 ──────────────────────────────
+            st.markdown("#### クイック質問")
+            quick_cols = st.columns(3)
+            quick_qs = [
+                "今のデータで一番課題がある担当者と理由を教えて",
+                "プレ→契約の転換率が低い原因と改善策は？",
+                "失注している顧客の共通点を教えて",
+                "アポからプレまでの動きが良い担当者は誰？",
+                "今週フォローすべき優先顧客を教えて",
+                "チーム全体の数値を総評して",
+            ]
+            for i, qq in enumerate(quick_qs):
+                if quick_cols[i % 3].button(qq, use_container_width=True, key=f"chat_quick_{i}"):
+                    st.session_state.setdefault("ai_chat_history", [])
+                    with st.spinner("Claudeが分析中..."):
+                        answer = ask_claude(api_key, qq, chat_context, st.session_state["ai_chat_history"])
+                    st.session_state["ai_chat_history"].append({"role": "user",      "content": qq})
+                    st.session_state["ai_chat_history"].append({"role": "assistant", "content": answer})
+                    st.rerun()
+
+            st.divider()
+
+            # ── チャット履歴表示 ──────────────────────────────
+            st.session_state.setdefault("ai_chat_history", [])
+            for msg in st.session_state["ai_chat_history"]:
+                with st.chat_message(msg["role"]):
+                    st.markdown(msg["content"])
+
+            # ── 入力欄 ──────────────────────────────
+            user_input = st.chat_input("データについて自由に質問してください...")
+            if user_input:
+                with st.chat_message("user"):
+                    st.markdown(user_input)
+                with st.spinner("Claudeが分析中..."):
+                    answer = ask_claude(api_key, user_input, chat_context, st.session_state["ai_chat_history"])
+                with st.chat_message("assistant"):
+                    st.markdown(answer)
+                st.session_state["ai_chat_history"].append({"role": "user",      "content": user_input})
+                st.session_state["ai_chat_history"].append({"role": "assistant", "content": answer})
+
+            if st.session_state["ai_chat_history"]:
+                if st.button("会話をリセット", key="reset_ai_chat"):
+                    st.session_state["ai_chat_history"] = []
+                    st.rerun()
 
 
 if __name__ == "__main__":
