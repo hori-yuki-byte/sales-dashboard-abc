@@ -823,7 +823,25 @@ def main():
         st.markdown("## 📋 発生ベース")
         st.caption("期間内にアポした顧客を起点に、アポ日以降のプレ・契約・失注を集計")
 
-        h_start, h_end, h_label = pick_period("hassei", default_period=1)
+        _h_period = st.radio(
+            "集計期間", ["昨日", "3日", "1週間", "2週間", "その他"],
+            index=2, horizontal=True, key="period_hassei",
+        )
+        if _h_period == "その他":
+            _hc1, _hc2 = st.columns(2)
+            _h_sd = _hc1.date_input("開始日", value=today.date() - timedelta(weeks=1), min_value=DATE_MIN, max_value=DATE_MAX, key="period_s_hassei")
+            _h_ed = _hc2.date_input("終了日", value=today.date(), min_value=DATE_MIN, max_value=DATE_MAX, key="period_e_hassei")
+            h_start, h_end = pd.Timestamp(_h_sd), pd.Timestamp(_h_ed)
+        elif _h_period == "昨日":
+            h_start = today - timedelta(days=1)
+            h_end   = today - timedelta(days=1)
+        else:
+            _h_days = {"3日": 3, "1週間": 7, "2週間": 14}[_h_period]
+            h_start = today - timedelta(days=_h_days)
+            h_end   = today
+        h_label = f"{_h_period}　{h_start.strftime('%m/%d')}〜{h_end.strftime('%m/%d')}"
+        st.session_state["_start_hassei"] = h_start
+        st.session_state["_end_hassei"]   = h_end
 
         if selected_person == "全員" or "営業担当者" not in df_all.columns:
             df_hassei_src = df_all
