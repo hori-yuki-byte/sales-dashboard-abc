@@ -723,7 +723,7 @@ def main():
     def pick_period(section_key: str, default_period: int = 1):
         """期間ラジオ＋日付入力を描画し (start, end, label) を返す"""
         period = st.radio(
-            "集計期間", ["3日", "1週間", "2週間", "その他"],
+            "集計期間", ["昨日", "3日", "1週間", "2週間", "その他"],
             index=default_period, horizontal=True, key=f"period_{section_key}",
         )
         if period == "その他":
@@ -733,6 +733,9 @@ def main():
             ed = c2.date_input("終了日", value=today.date(),
                                min_value=DATE_MIN, max_value=DATE_MAX, key=f"period_e_{section_key}")
             start, end = pd.Timestamp(sd), pd.Timestamp(ed)
+        elif period == "昨日":
+            start = today - timedelta(days=1)
+            end   = today - timedelta(days=1)
         else:
             days = {"3日": 3, "1週間": 7, "2週間": 14}[period]
             start = today - timedelta(days=days)
@@ -813,7 +816,7 @@ def main():
     if page == "📈 ダッシュボード":
         st.markdown("## 📈 実施ベース")
         st.caption("営業日（実際に商談が行われた日）でフィルター")
-        result_jisshi = render_kpi_section("営業日", "jisshi", "KPIサマリー", default_period=1)
+        result_jisshi = render_kpi_section("営業日", "jisshi", "KPIサマリー", default_period=2)
 
         st.divider()
 
@@ -1081,7 +1084,7 @@ def main():
             # ── 実施ベース ──────────────────────────────
             st.markdown("### 📈 実施ベース")
             st.caption("営業日でフィルター")
-            j_start, j_end, j_label = pick_period("comp_j")
+            j_start, j_end, j_label = pick_period("comp_j", default_period=2)
 
             j_rows = []
             for label, df_v in views:
@@ -1109,7 +1112,7 @@ def main():
             # ── 発生ベース ──────────────────────────────
             st.markdown("### 📋 発生ベース")
             st.caption("期間内アポを起点に、アポ日以降の転換を集計")
-            h_start2, h_end2, h_label2 = pick_period("comp_h")
+            h_start2, h_end2, h_label2 = pick_period("comp_h", default_period=2)
 
             h_rows = []
             for label, df_v in views:
