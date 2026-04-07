@@ -259,6 +259,22 @@ def calc_kpi(df):
     # 再プレ飛びUU（独立指標）
     kpi["再プレ飛びUU"] = col_uu(df, "報告種別", RE_PRE_NOSHOWN_PATTERN, regex=True)
 
+    # プレリスケUU：報告種別=プレ かつ 結果にリスケを含む
+    if "報告種別" in df.columns and "結果" in df.columns and "顧客ID" in df.columns:
+        pre_riske_mask = (
+            get_col(df, "報告種別").str.contains(PRE_PATTERN, na=False, regex=True)
+            & get_col(df, "結果").str.contains(PRE_RESCHEDULED_PATTERN, na=False, regex=True)
+        )
+        re_pre_riske_mask = (
+            get_col(df, "報告種別").str.contains(RE_PRE_PATTERN, na=False, regex=True)
+            & get_col(df, "結果").str.contains(PRE_RESCHEDULED_PATTERN, na=False, regex=True)
+        )
+        kpi["プレリスケUU"]   = get_col(df[pre_riske_mask],    "顧客ID").nunique()
+        kpi["再プレリスケUU"] = get_col(df[re_pre_riske_mask], "顧客ID").nunique()
+    else:
+        kpi["プレリスケUU"]   = 0
+        kpi["再プレリスケUU"] = 0
+
     # 成約率：契約 ÷（契約＋失注＋プレ飛び＋再プレ飛び＋契約飛び）
     denom = kpi["契約UU"] + kpi["失注UU"] + kpi["プレ飛びUU"] + kpi["再プレ飛びUU"] + kpi["契約飛びUU"]
     kpi["成約率"] = f"{kpi['契約UU'] / denom * 100:.1f}%" if denom > 0 else "-"
@@ -345,6 +361,8 @@ def calc_per_person(df):
             "次回契約予定UU": kpi["次回契約予定UU"],
             "失注UU":        kpi["失注UU"],
             "成約率":        kpi["成約率"],
+            "プレリスケUU":   kpi["プレリスケUU"],
+            "再プレリスケUU": kpi["再プレリスケUU"],
         })
     df_rows = pd.DataFrame(rows)
     return df_rows.sort_values("総UU", ascending=False) if not df_rows.empty else df_rows
@@ -800,6 +818,8 @@ def main():
         r3[1].metric("プレ着座率",     cz["プレ着座率"],       help="プレUU ÷ プレ予定UU（プレ+プレ飛び）")
         r3[2].metric("再プレ着座率",   cz["再プレ着座率"],     help="再プレUU ÷ 再プレ予定UU（再プレ+再プレ飛び）")
         r3[3].metric("プレ成約率",     cz["プレ成約率"],       help="契約UU ÷ プレUU")
+        r3[4].metric("プレリスケUU",   kpi["プレリスケUU"],    help="報告種別＝プレ かつ 結果にリスケを含む")
+        r3[5].metric("再プレリスケUU", kpi["再プレリスケUU"],  help="報告種別＝再プレ かつ 結果にリスケを含む")
 
         if selected_person == "全員" and not per_person_df.empty:
             with st.expander("👥 営業担当者別実績を見る"):
