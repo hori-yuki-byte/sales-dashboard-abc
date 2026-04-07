@@ -959,7 +959,7 @@ def main():
         with st.expander("🔍 数値の内訳を確認する（デバッグ用）"):
             debug_metric = st.selectbox(
                 "確認したい指標",
-                ["プレ", "アポ", "再プレ", "プレ飛び", "契約", "失注", "プレ言質", "再プレ言質"],
+                ["プレ", "アポ", "再プレ", "プレ飛び", "契約", "失注", "プレ言質", "再プレ言質", "プレリスケ", "再プレリスケ"],
                 key="debug_metric"
             )
             debug_base = st.radio("ベース", ["実施ベース（営業日）", "発生ベース（タイムスタンプ）"], horizontal=True, key="debug_base")
@@ -990,7 +990,22 @@ def main():
                 "失注":     (LOST_PATTERN,          "報告種別", None),
             }
 
-            if debug_metric in ("プレ言質", "再プレ言質"):
+            if debug_metric in ("プレリスケ", "再プレリスケ"):
+                # リスケ系：報告種別=プレ/再プレ かつ 結果=リスケ日程確定orリスケ日程不明
+                hoko_pat = PRE_PATTERN if debug_metric == "プレリスケ" else RE_PRE_PATTERN
+                if "報告種別" in d_df.columns and "結果" in d_df.columns:
+                    riske_mask = (
+                        get_col(d_df, "報告種別").str.contains(hoko_pat, na=False, regex=True)
+                        & get_col(d_df, "結果").str.contains(PRE_RESCHEDULED_PATTERN, na=False, regex=True)
+                    )
+                    d_result = d_df[riske_mask]
+                    show_cols = [c for c in ["営業日", "営業担当者", "顧客名", "報告種別", "結果"] if c in d_result.columns]
+                    uu = get_col(d_result, "顧客ID").nunique() if "顧客ID" in d_result.columns else "-"
+                    st.write(f"**{debug_metric}** の該当行：{len(d_result)}件 / UU：{uu}件")
+                    st.dataframe(d_result[show_cols].sort_values("営業日", ascending=False), use_container_width=True, hide_index=True)
+                else:
+                    st.info("必要な列がありません")
+            elif debug_metric in ("プレ言質", "再プレ言質"):
                 # 言質系：calc_ganchiと同じロジックで顧客一覧を表示
                 pre_mask    = get_col(d_df, "報告種別").str.contains(PRE_PATTERN,    na=False, regex=True) if "報告種別" in d_df.columns else pd.Series(False, index=d_df.index)
                 re_pre_mask = get_col(d_df, "報告種別").str.contains(RE_PRE_PATTERN, na=False, regex=True) if "報告種別" in d_df.columns else pd.Series(False, index=d_df.index)
