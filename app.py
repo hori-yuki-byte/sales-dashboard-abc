@@ -52,7 +52,7 @@ CONTRACT_NOSHOWN_PATTERN = r"契約予定飛び"   # 報告種別
 CONTRACT_ADJUST_PATTERN  = r"契約予定調整"   # 報告種別 + 結果=失注
 
 # プレUU・再プレUUから除外する結果値
-PRE_EXCLUDE_RESULTS = ["リスケ日程不明|リスケ日程確定", "^プレ日程確定$"]  # 「再プレ日程確定」は除外しない
+PRE_EXCLUDE_RESULTS = [PRE_RESCHEDULED_PATTERN, "^プレ日程確定$"]  # 「再プレ日程確定」は除外しない
 
 # ヘッダーなしCSVに付ける列名（順番はスプレッドシートの列順と一致）
 SHEET_COLS = [
@@ -470,8 +470,11 @@ def calc_chakuza(df) -> dict:
     re_pre_noshown_uu = col_uu(df, "報告種別", RE_PRE_NOSHOWN_PATTERN, regex=True)
     pre_riske_uu = re_pre_riske_uu = 0
     if "報告種別" in df.columns and "結果" in df.columns and "顧客ID" in df.columns:
-        pre_riske_uu    = get_col(df[get_col(df, "報告種別").str.contains(PRE_PATTERN,    na=False, regex=True) & get_col(df, "結果").str.contains(PRE_RESCHEDULED_PATTERN, na=False, regex=True)], "顧客ID").nunique()
-        re_pre_riske_uu = get_col(df[get_col(df, "報告種別").str.contains(RE_PRE_PATTERN, na=False, regex=True) & get_col(df, "結果").str.contains(PRE_RESCHEDULED_PATTERN, na=False, regex=True)], "顧客ID").nunique()
+        riske_ketsu = get_col(df, "結果").str.contains(PRE_RESCHEDULED_PATTERN, na=False, regex=True)
+        pre_riske_mask    = get_col(df, "報告種別").str.contains(PRE_PATTERN,    na=False, regex=True) & riske_ketsu
+        re_pre_riske_mask = get_col(df, "報告種別").str.contains(RE_PRE_PATTERN, na=False, regex=True) & riske_ketsu
+        pre_riske_uu    = get_col(df[pre_riske_mask],    "顧客ID").nunique()
+        re_pre_riske_uu = get_col(df[re_pre_riske_mask], "顧客ID").nunique()
 
     # プレ予定UU（リスケ含まない着座率用）= プレUU + プレ飛びUU
     pre_yotei_old    = pre_uu + pre_noshown_uu
@@ -884,25 +887,7 @@ def main():
         st.markdown("## 📋 発生ベース")
         st.caption("期間内にアポした顧客を起点に、アポ日以降のプレ・契約・失注を集計")
 
-        _h_period = st.radio(
-            "集計期間", ["昨日", "3日", "1週間", "2週間", "その他"],
-            index=2, horizontal=True, key="period_hassei",
-        )
-        if _h_period == "その他":
-            _hc1, _hc2 = st.columns(2)
-            _h_sd = _hc1.date_input("開始日", value=today.date() - timedelta(weeks=1), min_value=DATE_MIN, max_value=DATE_MAX, key="period_s_hassei")
-            _h_ed = _hc2.date_input("終了日", value=today.date(), min_value=DATE_MIN, max_value=DATE_MAX, key="period_e_hassei")
-            h_start, h_end = pd.Timestamp(_h_sd), pd.Timestamp(_h_ed)
-        elif _h_period == "昨日":
-            h_start = today - timedelta(days=1)
-            h_end   = today - timedelta(days=1)
-        else:
-            _h_days = {"3日": 3, "1週間": 7, "2週間": 14}[_h_period]
-            h_start = today - timedelta(days=_h_days)
-            h_end   = today
-        h_label = f"{_h_period}　{h_start.strftime('%m/%d')}〜{h_end.strftime('%m/%d')}"
-        st.session_state["_start_hassei"] = h_start
-        st.session_state["_end_hassei"]   = h_end
+        h_start, h_end, h_label = pick_period("hassei", default_period=2)
 
         if selected_person == "全員" or "営業担当者" not in df_all.columns:
             df_hassei_src = df_all
@@ -1116,7 +1101,6 @@ def main():
                 fig2.update_layout(height=320, xaxis_tickformat="%m/%d")
                 st.plotly_chart(fig2, use_container_width=True)
 
-        # =============================================
     # =============================================
     # ページ2：チーム比較
     # =============================================
