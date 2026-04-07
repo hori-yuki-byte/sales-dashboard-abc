@@ -185,8 +185,9 @@ def normalize_columns(df: pd.DataFrame) -> pd.DataFrame:
                     col_map[col] = name
                     break
     df = df.rename(columns=col_map)
-    # 文字列列の前後スペース・全角スペース・シングルクォートを除去
-    for _c in ["報告種別", "結果", "営業担当者", "顧客名", "顧客ID", "次回アクション"]:
+    # 全列：前後スペース・シングルクォート・全角スペースを除去（日付変換前に実施）
+    for _c in ["報告種別", "結果", "営業担当者", "顧客名", "顧客ID",
+               "次回アクション", "次回アクション日", "営業日", "タイムスタンプ"]:
         if _c in df.columns:
             df[_c] = (df[_c].astype(str)
                       .str.strip()
