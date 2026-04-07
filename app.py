@@ -1003,6 +1003,17 @@ def main():
                     uu = get_col(d_result, "顧客ID").nunique() if "顧客ID" in d_result.columns else "-"
                     st.write(f"**{debug_metric}** の該当行：{len(d_result)}件 / UU：{uu}件")
                     st.dataframe(d_result[show_cols].sort_values("営業日", ascending=False), use_container_width=True, hide_index=True)
+
+                    # 診断：報告種別がプレ/再プレの行の「結果」の実際の値を確認
+                    with st.expander("🔍 診断：報告種別に該当する行の結果一覧（マッチしない原因調査）"):
+                        hoko_all = d_df[get_col(d_df, "報告種別").str.contains(hoko_pat, na=False, regex=True)]
+                        if not hoko_all.empty:
+                            diag_cols = [c for c in ["営業日", "営業担当者", "顧客名", "報告種別", "結果"] if c in hoko_all.columns]
+                            st.write(f"報告種別が該当する行：{len(hoko_all)}件")
+                            st.write("結果の値（ユニーク）:", sorted(get_col(hoko_all, "結果").unique().tolist()))
+                            st.dataframe(hoko_all[diag_cols].sort_values("営業日", ascending=False), use_container_width=True, hide_index=True)
+                        else:
+                            st.info("報告種別に該当する行がありません")
                 else:
                     st.info("必要な列がありません")
             elif debug_metric in ("プレ言質", "再プレ言質"):
