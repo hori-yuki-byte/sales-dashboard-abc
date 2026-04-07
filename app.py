@@ -282,6 +282,7 @@ def calc_kpi(df):
             & get_col(df, "結果").str.contains(r"プレ日程確定", na=False, regex=True)
         )
         kpi["ブリッジUU"] = get_col(df[bridge_mask], "顧客ID").nunique()
+        kpi["ブリッジ率"] = f"{kpi['ブリッジUU'] / kpi['アポUU'] * 100:.1f}%" if kpi["アポUU"] > 0 else "-"
         # 契約リスケUU：報告種別に「契約」を含む かつ 結果にリスケを含む
         contract_riske_mask = (
             get_col(df, "報告種別").str.contains(r"契約", na=False, regex=True)
@@ -292,6 +293,7 @@ def calc_kpi(df):
         kpi["プレリスケUU"]   = 0
         kpi["再プレリスケUU"] = 0
         kpi["ブリッジUU"]     = 0
+        kpi["ブリッジ率"]     = "-"
         kpi["契約リスケUU"]   = 0
 
     # 成約率：契約 ÷（契約＋失注＋プレ飛び＋再プレ飛び＋契約飛び）
@@ -380,6 +382,8 @@ def calc_per_person(df):
             "次回契約予定UU": kpi["次回契約予定UU"],
             "失注UU":        kpi["失注UU"],
             "成約率":        kpi["成約率"],
+            "ブリッジUU":     kpi["ブリッジUU"],
+            "ブリッジ率":     kpi["ブリッジ率"],
             "プレリスケUU":   kpi["プレリスケUU"],
             "再プレリスケUU": kpi["再プレリスケUU"],
         })
@@ -856,7 +860,8 @@ def main():
         r4[0].metric("プレリスケUU",   kpi["プレリスケUU"],    help="報告種別＝プレ かつ 結果にリスケを含む")
         r4[1].metric("再プレリスケUU", kpi["再プレリスケUU"],  help="報告種別＝再プレ かつ 結果にリスケを含む")
         r4[2].metric("ブリッジUU",     kpi["ブリッジUU"],      help="報告種別＝アポ かつ 結果にプレ日程確定を含む")
-        r4[3].metric("契約リスケUU",   kpi["契約リスケUU"],    help="報告種別に契約を含む かつ 結果にリスケを含む")
+        r4[3].metric("ブリッジ率",     kpi["ブリッジ率"],      help="ブリッジUU ÷ アポUU")
+        r4[4].metric("契約リスケUU",   kpi["契約リスケUU"],    help="報告種別に契約を含む かつ 結果にリスケを含む")
 
         if selected_person == "全員" and not per_person_df.empty:
             with st.expander("👥 営業担当者別実績を見る"):
