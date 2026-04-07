@@ -271,9 +271,23 @@ def calc_kpi(df):
         )
         kpi["プレリスケUU"]   = get_col(df[pre_riske_mask],    "顧客ID").nunique()
         kpi["再プレリスケUU"] = get_col(df[re_pre_riske_mask], "顧客ID").nunique()
+        # ブリッジUU：報告種別=アポ かつ 結果にプレ日程確定を含む
+        bridge_mask = (
+            get_col(df, "報告種別").str.contains(APO_PATTERN, na=False, regex=True)
+            & get_col(df, "結果").str.contains(r"プレ日程確定", na=False, regex=True)
+        )
+        kpi["ブリッジUU"] = get_col(df[bridge_mask], "顧客ID").nunique()
+        # 契約リスケUU：報告種別に「契約」を含む かつ 結果にリスケを含む
+        contract_riske_mask = (
+            get_col(df, "報告種別").str.contains(r"契約", na=False, regex=True)
+            & get_col(df, "結果").str.contains(PRE_RESCHEDULED_PATTERN, na=False, regex=True)
+        )
+        kpi["契約リスケUU"] = get_col(df[contract_riske_mask], "顧客ID").nunique()
     else:
         kpi["プレリスケUU"]   = 0
         kpi["再プレリスケUU"] = 0
+        kpi["ブリッジUU"]     = 0
+        kpi["契約リスケUU"]   = 0
 
     # 成約率：契約 ÷（契約＋失注＋プレ飛び＋再プレ飛び＋契約飛び）
     denom = kpi["契約UU"] + kpi["失注UU"] + kpi["プレ飛びUU"] + kpi["再プレ飛びUU"] + kpi["契約飛びUU"]
@@ -443,21 +457,30 @@ def calc_chakuza(df) -> dict:
     if "報告種別" not in df.columns:
         return zero
 
-    # プレ予定UU = 報告種別がプレ(全結果) または プレ飛び
-    pre_all     = get_col(df, "報告種別").str.contains(PRE_PATTERN,         na=False, regex=True)
-    pre_noshown = get_col(df, "報告種別").str.contains(PRE_NOSHOWN_PATTERN,  na=False, regex=True)
-    pre_yotei   = get_col(df[pre_all | pre_noshown], "顧客ID").nunique() if "顧客ID" in df.columns else int((pre_all | pre_noshown).sum())
+    pre_uu    = col_uu(df, "報告種別", PRE_PATTERN,    regex=True, exclude_col="結果", exclude_patterns=PRE_EXCLUDE_RESULTS)
+    re_pre_uu = col_uu(df, "報告種別", RE_PRE_PATTERN, regex=True, exclude_col="結果", exclude_patterns=PRE_EXCLUDE_RESULTS)
 
-    # 再プレ予定UU = 報告種別が再プレ(全結果) または 再プレ飛び
-    re_pre_all     = get_col(df, "報告種別").str.contains(RE_PRE_PATTERN,        na=False, regex=True)
-    re_pre_noshown = get_col(df, "報告種別").str.contains(RE_PRE_NOSHOWN_PATTERN, na=False, regex=True)
-    re_pre_yotei   = get_col(df[re_pre_all | re_pre_noshown], "顧客ID").nunique() if "顧客ID" in df.columns else int((re_pre_all | re_pre_noshown).sum())
+    # プレ飛びUU・再プレ飛びUU・リスケUU（着座率分母用）
+    pre_noshown_uu    = col_uu(df, "報告種別", PRE_NOSHOWN_PATTERN,    regex=True)
+    re_pre_noshown_uu = col_uu(df, "報告種別", RE_PRE_NOSHOWN_PATTERN, regex=True)
+    pre_riske_uu = re_pre_riske_uu = 0
+    if "報告種別" in df.columns and "結果" in df.columns and "顧客ID" in df.columns:
+        pre_riske_uu    = get_col(df[get_col(df, "報告種別").str.contains(PRE_PATTERN,    na=False, regex=True) & get_col(df, "結果").str.contains(PRE_RESCHEDULED_PATTERN, na=False, regex=True)], "顧客ID").nunique()
+        re_pre_riske_uu = get_col(df[get_col(df, "報告種別").str.contains(RE_PRE_PATTERN, na=False, regex=True) & get_col(df, "結果").str.contains(PRE_RESCHEDULED_PATTERN, na=False, regex=True)], "顧客ID").nunique()
 
-    pre_uu      = col_uu(df, "報告種別", PRE_PATTERN,    regex=True, exclude_col="結果", exclude_patterns=PRE_EXCLUDE_RESULTS)
-    re_pre_uu   = col_uu(df, "報告種別", RE_PRE_PATTERN, regex=True, exclude_col="結果", exclude_patterns=PRE_EXCLUDE_RESULTS)
+    # プレ予定UU（リスケ含まない着座率用）= プレUU + プレ飛びUU
+    pre_yotei_old    = pre_uu + pre_noshown_uu
+    re_pre_yotei_old = re_pre_uu + re_pre_noshown_uu
+
+    # プレ予定UU（リスケ含む着座率用）= プレUU + プレ飛びUU + プレリスケUU
+    pre_yotei    = pre_uu + pre_noshown_uu + pre_riske_uu
+    re_pre_yotei = re_pre_uu + re_pre_noshown_uu + re_pre_riske_uu
+
     contract_uu = col_uu(df, "結果", CONTRACT_PATTERN, regex=True)
 
     return {
+        "プレ着座率(リスケ含めない)":   f"{pre_uu    / pre_yotei_old    * 100:.1f}%" if pre_yotei_old    > 0 else "-",
+        "再プレ着座率(リスケ含めない)": f"{re_pre_uu / re_pre_yotei_old * 100:.1f}%" if re_pre_yotei_old > 0 else "-",
         "プレ着座率":   f"{pre_uu    / pre_yotei    * 100:.1f}%" if pre_yotei    > 0 else "-",
         "再プレ着座率": f"{re_pre_uu / re_pre_yotei * 100:.1f}%" if re_pre_yotei > 0 else "-",
         "プレ成約率":   f"{contract_uu / pre_uu     * 100:.1f}%" if pre_uu       > 0 else "-",
@@ -476,8 +499,8 @@ def check_metric_alerts(kpi: dict, ganchi: dict, chakuza: dict, thresholds: dict
         ("成約率",      kpi.get("成約率", "-")),
         ("プレ言質率",  ganchi.get("プレ言質率", "-")),
         ("再プレ言質率", ganchi.get("再プレ言質率", "-")),
-        ("プレ着座率",  chakuza.get("プレ着座率", "-")),
-        ("再プレ着座率", chakuza.get("再プレ着座率", "-")),
+        ("プレ着座率",  chakuza.get("プレ着座率(リスケ含めない)", "-")),
+        ("再プレ着座率", chakuza.get("再プレ着座率(リスケ含めない)", "-")),
         ("プレ成約率",  chakuza.get("プレ成約率", "-")),
     ]
     alerts = []
@@ -530,8 +553,8 @@ def render_alerts(kpi: dict, ganchi: dict, chakuza: dict, df_src: pd.DataFrame, 
             "成約率":       _fmt(pk["契約UU"],     denom_seiyaku,         pk["成約率"]),
             "プレ言質率":   _fmt(pg["プレ言質UU"], pk["プレUU"],          pg["プレ言質率"]),
             "再プレ言質率": _fmt(pg["再プレ言質UU"], pk["再プレUU"],       pg["再プレ言質率"]),
-            "プレ着座率":   _fmt(pk["プレUU"],      pcz["プレ予定UU"],    pcz["プレ着座率"]),
-            "再プレ着座率": _fmt(pk["再プレUU"],    pcz["再プレ予定UU"],  pcz["再プレ着座率"]),
+            "プレ着座率":   _fmt(pk["プレUU"],      pcz["プレ予定UU"],    pcz["プレ着座率(リスケ含めない)"]),
+            "再プレ着座率": _fmt(pk["再プレUU"],    pcz["再プレ予定UU"],  pcz["再プレ着座率(リスケ含めない)"]),
             "プレ成約率":   _fmt(pk["契約UU"],      pk["プレUU"],          pcz["プレ成約率"]),
         }
 
@@ -552,8 +575,8 @@ def render_alerts(kpi: dict, ganchi: dict, chakuza: dict, df_src: pd.DataFrame, 
                 "成約率":       _fmt(kpi["契約UU"],       denom_seiyaku,          kpi["成約率"]),
                 "プレ言質率":   _fmt(ganchi["プレ言質UU"], kpi["プレUU"],          ganchi["プレ言質率"]),
                 "再プレ言質率": _fmt(ganchi["再プレ言質UU"], kpi["再プレUU"],      ganchi["再プレ言質率"]),
-                "プレ着座率":   _fmt(kpi["プレUU"],        chakuza["プレ予定UU"], chakuza["プレ着座率"]),
-                "再プレ着座率": _fmt(kpi["再プレUU"],      chakuza["再プレ予定UU"], chakuza["再プレ着座率"]),
+                "プレ着座率":   _fmt(kpi["プレUU"],        chakuza["プレ予定UU"], chakuza["プレ着座率(リスケ含めない)"]),
+                "再プレ着座率": _fmt(kpi["再プレUU"],      chakuza["再プレ予定UU"], chakuza["再プレ着座率(リスケ含めない)"]),
                 "プレ成約率":   _fmt(kpi["契約UU"],        kpi["プレUU"],          chakuza["プレ成約率"]),
             }
             for name, val, thr in metric_alerts:
@@ -814,12 +837,18 @@ def main():
         r2[6].metric("プレ言質率",     g["プレ言質率"],        help="プレ言質UU ÷ プレUU")
 
         r3 = st.columns(7)
-        r3[0].metric("再プレ言質率",   g["再プレ言質率"],      help="再プレ言質UU ÷ 再プレUU")
-        r3[1].metric("プレ着座率",     cz["プレ着座率"],       help="プレUU ÷ プレ予定UU（プレ+プレ飛び）")
-        r3[2].metric("再プレ着座率",   cz["再プレ着座率"],     help="再プレUU ÷ 再プレ予定UU（再プレ+再プレ飛び）")
-        r3[3].metric("プレ成約率",     cz["プレ成約率"],       help="契約UU ÷ プレUU")
-        r3[4].metric("プレリスケUU",   kpi["プレリスケUU"],    help="報告種別＝プレ かつ 結果にリスケを含む")
-        r3[5].metric("再プレリスケUU", kpi["再プレリスケUU"],  help="報告種別＝再プレ かつ 結果にリスケを含む")
+        r3[0].metric("再プレ言質率",           g["再プレ言質率"],                    help="再プレ言質UU ÷ 再プレUU")
+        r3[1].metric("プレ着座率(リスケ含めない)",   cz["プレ着座率(リスケ含めない)"],   help="プレUU ÷（プレUU+プレ飛びUU）")
+        r3[2].metric("再プレ着座率(リスケ含めない)", cz["再プレ着座率(リスケ含めない)"], help="再プレUU ÷（再プレUU+再プレ飛びUU）")
+        r3[3].metric("プレ着座率",             cz["プレ着座率"],                     help="プレUU ÷（プレUU+プレ飛びUU+プレリスケUU）")
+        r3[4].metric("再プレ着座率",           cz["再プレ着座率"],                   help="再プレUU ÷（再プレUU+再プレ飛びUU+再プレリスケUU）")
+        r3[5].metric("プレ成約率",             cz["プレ成約率"],                     help="契約UU ÷ プレUU")
+
+        r4 = st.columns(7)
+        r4[0].metric("プレリスケUU",   kpi["プレリスケUU"],    help="報告種別＝プレ かつ 結果にリスケを含む")
+        r4[1].metric("再プレリスケUU", kpi["再プレリスケUU"],  help="報告種別＝再プレ かつ 結果にリスケを含む")
+        r4[2].metric("ブリッジUU",     kpi["ブリッジUU"],      help="報告種別＝アポ かつ 結果にプレ日程確定を含む")
+        r4[3].metric("契約リスケUU",   kpi["契約リスケUU"],    help="報告種別に契約を含む かつ 結果にリスケを含む")
 
         if selected_person == "全員" and not per_person_df.empty:
             with st.expander("👥 営業担当者別実績を見る"):
