@@ -185,10 +185,13 @@ def normalize_columns(df: pd.DataFrame) -> pd.DataFrame:
                     col_map[col] = name
                     break
     df = df.rename(columns=col_map)
-    # 文字列列の前後スペース・全角スペースを除去
+    # 文字列列の前後スペース・全角スペース・シングルクォートを除去
     for _c in ["報告種別", "結果", "営業担当者", "顧客名", "顧客ID", "次回アクション"]:
         if _c in df.columns:
-            df[_c] = df[_c].astype(str).str.strip().str.replace("\u3000", "", regex=False)
+            df[_c] = (df[_c].astype(str)
+                      .str.strip()
+                      .str.strip("'")
+                      .str.replace("\u3000", "", regex=False))
     if "営業日" in df.columns:
         df["営業日"] = pd.to_datetime(df["営業日"], errors="coerce")
     if "タイムスタンプ" in df.columns:
