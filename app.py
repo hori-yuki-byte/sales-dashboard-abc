@@ -169,6 +169,7 @@ def normalize_columns(df: pd.DataFrame) -> pd.DataFrame:
         ("顧客ID",         "顧客ID"),
         ("顧客名",         "顧客名"),
         ("営業担当",       "営業担当者"),
+        ("担当者",         "営業担当者"),
         ("営業日",         "営業日"),
         ("報告種別",       "報告種別"),
         ("結果",           "結果"),
@@ -194,9 +195,9 @@ def normalize_columns(df: pd.DataFrame) -> pd.DataFrame:
                       .str.strip("'")
                       .str.replace("\u3000", "", regex=False))
     if "営業日" in df.columns:
-        df["営業日"] = pd.to_datetime(df["営業日"], errors="coerce")
+        df["営業日"] = pd.to_datetime(df["営業日"], errors="coerce", format="mixed")
     if "タイムスタンプ" in df.columns:
-        df["タイムスタンプ"] = pd.to_datetime(df["タイムスタンプ"], errors="coerce")
+        df["タイムスタンプ"] = pd.to_datetime(df["タイムスタンプ"], errors="coerce", format="mixed")
     if "営業日" not in df.columns and "タイムスタンプ" in df.columns:
         df["営業日"] = df["タイムスタンプ"]
     return df
@@ -1008,18 +1009,20 @@ def main():
                     st.write(f"**{debug_metric}** の該当行：{len(d_result)}件 / UU：{uu}件")
                     st.dataframe(d_result[show_cols].sort_values("営業日", ascending=False), use_container_width=True, hide_index=True)
 
-                    # 診断：報告種別がプレ/再プレの行の「結果」の実際の値を確認
-                    with st.expander("🔍 診断：報告種別に該当する行の結果一覧（マッチしない原因調査）"):
-                        hoko_all = d_df[get_col(d_df, "報告種別").str.contains(hoko_pat, na=False, regex=True)]
+                    # 診断：条件ごとにどこで外れているか確認
+                    with st.expander("🔍 診断：条件の絞り込み確認"):
+                        mask_hoko = get_col(d_df, "報告種別").str.contains(hoko_pat, na=False, regex=True)
+                        mask_ketsu = get_col(d_df, "結果").str.contains(PRE_RESCHEDULED_PATTERN, na=False, regex=True)
+                        st.write(f"① 報告種別マッチ行数：{mask_hoko.sum()}件")
+                        st.write(f"② 結果マッチ行数：{mask_ketsu.sum()}件")
+                        st.write(f"③ 両方マッチ（AND）：{(mask_hoko & mask_ketsu).sum()}件")
+                        st.write(f"使用パターン　報告種別：`{hoko_pat}`　結果：`{PRE_RESCHEDULED_PATTERN}`")
+                        # 報告種別マッチ行の結果値を全表示
+                        hoko_all = d_df[mask_hoko]
                         if not hoko_all.empty:
                             diag_cols = [c for c in ["営業日", "営業担当者", "顧客名", "報告種別", "結果"] if c in hoko_all.columns]
-                            st.write(f"報告種別が該当する行：{len(hoko_all)}件")
-                            unique_vals = get_col(hoko_all, "結果").unique().tolist()
-                            st.write("結果の値（ユニーク）:", unique_vals)
-                            st.write("結果の値（repr・隠し文字確認）:", [repr(v) for v in unique_vals])
+                            st.write("報告種別マッチ行の結果（repr）:", [repr(v) for v in get_col(hoko_all, "結果").tolist()])
                             st.dataframe(hoko_all[diag_cols].sort_values("営業日", ascending=False), use_container_width=True, hide_index=True)
-                        else:
-                            st.info("報告種別に該当する行がありません")
                 else:
                     st.info("必要な列がありません")
             elif debug_metric in ("プレ言質", "再プレ言質"):
