@@ -47,12 +47,12 @@ RE_PRE_NOSHOWN_PATTERN   = r"再プレ飛び"
 CONTRACT_PATTERN         = r"^契約$"
 NEXT_CONTRACT_PATTERN    = r"次回契約予定"
 LOST_PATTERN             = r"^失注$"
-PRE_RESCHEDULED_PATTERN  = r"リスケ"
+PRE_RESCHEDULED_PATTERN  = r"リスケ日程不明|リスケ日程確定"
 CONTRACT_NOSHOWN_PATTERN = r"契約予定飛び"   # 報告種別
 CONTRACT_ADJUST_PATTERN  = r"契約予定調整"   # 報告種別 + 結果=失注
 
 # プレUU・再プレUUから除外する結果値
-PRE_EXCLUDE_RESULTS = ["リスケ", "^プレ日程確定$"]  # 「再プレ日程確定」は除外しない
+PRE_EXCLUDE_RESULTS = ["リスケ日程不明|リスケ日程確定", "^プレ日程確定$"]  # 「再プレ日程確定」は除外しない
 
 # ヘッダーなしCSVに付ける列名（順番はスプレッドシートの列順と一致）
 SHEET_COLS = [
