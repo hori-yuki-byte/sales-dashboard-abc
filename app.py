@@ -1010,7 +1010,9 @@ def main():
                         if not hoko_all.empty:
                             diag_cols = [c for c in ["営業日", "営業担当者", "顧客名", "報告種別", "結果"] if c in hoko_all.columns]
                             st.write(f"報告種別が該当する行：{len(hoko_all)}件")
-                            st.write("結果の値（ユニーク）:", sorted(get_col(hoko_all, "結果").unique().tolist()))
+                            unique_vals = get_col(hoko_all, "結果").unique().tolist()
+                            st.write("結果の値（ユニーク）:", unique_vals)
+                            st.write("結果の値（repr・隠し文字確認）:", [repr(v) for v in unique_vals])
                             st.dataframe(hoko_all[diag_cols].sort_values("営業日", ascending=False), use_container_width=True, hide_index=True)
                         else:
                             st.info("報告種別に該当する行がありません")
