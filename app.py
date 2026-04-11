@@ -1254,6 +1254,12 @@ def main():
             df_sch["予定種別"] = df_sch.apply(classify_yotei, axis=1)
             df_sch = df_sch.dropna(subset=["予定種別"])
 
+            # 同じ顧客・予定種別が複数行ある場合、タイムスタンプが最新の1件だけ残す
+            if "顧客ID" in df_sch.columns and "タイムスタンプ" in df_sch.columns:
+                df_sch = df_sch.sort_values("タイムスタンプ").groupby(["顧客ID", "予定種別"], as_index=False).last()
+            elif "顧客ID" in df_sch.columns and "営業日" in df_sch.columns:
+                df_sch = df_sch.sort_values("営業日").groupby(["顧客ID", "予定種別"], as_index=False).last()
+
             # 期間選択
             sch_period = st.radio(
                 "表示期間",
