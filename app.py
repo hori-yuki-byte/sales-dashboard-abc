@@ -560,8 +560,8 @@ def render_alerts(kpi: dict, ganchi: dict, chakuza: dict, df_src: pd.DataFrame, 
 
         denom_seiyaku = pk["契約UU"] + pk["失注UU"] + pk["プレ飛びUU"] + pk["再プレ飛びUU"] + pk["契約飛びUU"]
         return {
-            "営業担当者":    person,
             "🚨アラート指標": "・".join(triggered),
+            "営業担当者":    person,
             "プレ言質率":    _fmt(pg["プレ言質UU"],   pk["プレUU"],       pg["プレ言質率"]),
             "再プレ言質率":  _fmt(pg["再プレ言質UU"], pk["再プレUU"],     pg["再プレ言質率"]),
             "プレ着座率②":  _fmt(pk["プレUU"],        pcz["プレ予定UU"],  pcz["プレ着座率"]),
