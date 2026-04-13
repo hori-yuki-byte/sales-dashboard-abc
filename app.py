@@ -847,48 +847,52 @@ div[data-testid="stMetricValue"] {
         with st.expander("🚨 アラート確認", expanded=True):
             render_alerts(kpi, g, cz, df_person, thresholds)
 
-        # ── 商談数 ──────────────────────────────────────
-        st.caption("📊 商談数")
+        # ── ① アポ・ブリッジ ────────────────────────────
+        st.caption("① アポ・ブリッジ")
         r1 = st.columns(6)
-        r1[0].metric("総UU",           kpi["total_uu"],        help="期間内のユニーク顧客数")
-        r1[1].metric("アポUU",         kpi["アポUU"],          help="報告種別＝アポ（完全一致）")
-        r1[2].metric("プレUU",         kpi["プレUU"],          help="報告種別＝プレ（リスケ・日程確定除く）")
-        r1[3].metric("再プレUU",       kpi["再プレUU"],        help="報告種別＝再プレ（リスケ・日程確定除く）")
-        r1[4].metric("契約UU",         kpi["契約UU"],          help="結果＝契約（完全一致）")
-        r1[5].metric("次回契約予定UU", kpi["次回契約予定UU"],  help="結果に次回契約予定を含む")
+        r1[0].metric("総UU",       kpi["total_uu"],    help="期間内のユニーク顧客数")
+        r1[1].metric("アポUU",     kpi["アポUU"],      help="報告種別＝アポ（完全一致）")
+        r1[2].metric("ブリッジUU", kpi["ブリッジUU"],  help="報告種別＝アポ かつ 結果にプレ日程確定を含む")
+        r1[3].metric("ブリッジ率", kpi["ブリッジ率"],  help="ブリッジUU ÷ アポUU")
 
-        # ── ネガティブ指標 ───────────────────────────────
-        st.caption("❌ ネガティブ指標")
+        # ── ② プレ ──────────────────────────────────────
+        st.caption("② プレ")
         r2 = st.columns(6)
-        r2[0].metric("プレ飛びUU",     kpi["プレ飛びUU"],      help="報告種別にプレ飛びを含む")
-        r2[1].metric("再プレ飛びUU",   kpi["再プレ飛びUU"],    help="報告種別に再プレ飛びを含む")
-        r2[2].metric("契約飛びUU",     kpi["契約飛びUU"],      help="契約予定飛び or 契約予定調整＋失注")
-        r2[3].metric("失注UU",         kpi["失注UU"],          help="報告種別または結果＝失注")
-        r2[4].metric("プレリスケUU",   kpi["プレリスケUU"],    help="報告種別＝プレ かつ 結果にリスケを含む")
-        r2[5].metric("再プレリスケUU", kpi["再プレリスケUU"],  help="報告種別＝再プレ かつ 結果にリスケを含む")
+        r2[0].metric("プレUU",       kpi["プレUU"],       help="報告種別＝プレ（リスケ・日程確定除く）")
+        r2[1].metric("プレリスケUU", kpi["プレリスケUU"], help="報告種別＝プレ かつ 結果にリスケを含む")
+        r2[2].metric("プレ飛びUU",   kpi["プレ飛びUU"],   help="報告種別にプレ飛びを含む")
+        r2[3].metric("プレ言質UU",   g["プレ言質UU"],     help="最後がプレ→契約or次回契約予定")
 
-        # ── 転換・ブリッジ ───────────────────────────────
-        st.caption("🔗 転換・ブリッジ")
+        # ── ③ 再プレ ────────────────────────────────────
+        st.caption("③ 再プレ")
         r3 = st.columns(6)
-        r3[0].metric("ブリッジUU",     kpi["ブリッジUU"],      help="報告種別＝アポ かつ 結果にプレ日程確定を含む")
-        r3[1].metric("ブリッジ率",     kpi["ブリッジ率"],      help="ブリッジUU ÷ アポUU")
-        r3[2].metric("プレ言質UU",     g["プレ言質UU"],        help="最後がプレ→契約or次回契約予定")
-        r3[3].metric("再プレ言質UU",   g["再プレ言質UU"],      help="最後が再プレ→契約or次回契約予定")
-        r3[4].metric("契約リスケUU",   kpi["契約リスケUU"],    help="報告種別に契約を含む かつ 結果にリスケを含む")
+        r3[0].metric("再プレUU",       kpi["再プレUU"],       help="報告種別＝再プレ（リスケ・日程確定除く）")
+        r3[1].metric("再プレリスケUU", kpi["再プレリスケUU"], help="報告種別＝再プレ かつ 結果にリスケを含む")
+        r3[2].metric("再プレ飛びUU",   kpi["再プレ飛びUU"],   help="報告種別に再プレ飛びを含む")
+        r3[3].metric("再プレ言質UU",   g["再プレ言質UU"],     help="最後が再プレ→契約or次回契約予定")
+
+        # ── ④ 契約 ──────────────────────────────────────
+        st.caption("④ 契約")
+        r4 = st.columns(6)
+        r4[0].metric("次回契約予定UU", kpi["次回契約予定UU"], help="結果に次回契約予定を含む")
+        r4[1].metric("契約UU",         kpi["契約UU"],         help="結果＝契約（完全一致）")
+        r4[2].metric("契約リスケUU",   kpi["契約リスケUU"],   help="報告種別に契約を含む かつ 結果にリスケを含む")
+        r4[3].metric("契約飛びUU",     kpi["契約飛びUU"],     help="契約予定飛び or 契約予定調整＋失注")
+        r4[4].metric("失注UU",         kpi["失注UU"],         help="報告種別または結果＝失注")
 
         # ── 率 ──────────────────────────────────────────
         st.caption("📈 率")
-        r4 = st.columns(6)
-        r4[0].metric("成約率",             kpi["成約率"],                        help="契約÷（契約＋失注＋プレ飛び＋再プレ飛び＋契約飛び）")
-        r4[1].metric("プレ言質率",         g["プレ言質率"],                      help="プレ言質UU ÷ プレUU")
-        r4[2].metric("再プレ言質率",       g["再プレ言質率"],                    help="再プレ言質UU ÷ 再プレUU")
-        r4[3].metric("プレ成約率",         cz["プレ成約率"],                     help="契約UU ÷ プレUU")
-        r4[4].metric("プレ着座率(飛びのみ)",   cz["プレ着座率(リスケ含めない)"],  help="プレUU ÷（プレUU+プレ飛びUU）")
-        r4[5].metric("再プレ着座率(飛びのみ)", cz["再プレ着座率(リスケ含めない)"],help="再プレUU ÷（再プレUU+再プレ飛びUU）")
-
         r5 = st.columns(6)
-        r5[0].metric("プレ着座率(リスケ込)",   cz["プレ着座率"],   help="プレUU ÷（プレUU+プレ飛びUU+プレリスケUU）")
-        r5[1].metric("再プレ着座率(リスケ込)", cz["再プレ着座率"], help="再プレUU ÷（再プレUU+再プレ飛びUU+再プレリスケUU）")
+        r5[0].metric("成約率",               kpi["成約率"],                         help="契約÷（契約＋失注＋プレ飛び＋再プレ飛び＋契約飛び）")
+        r5[1].metric("プレ言質率",           g["プレ言質率"],                       help="プレ言質UU ÷ プレUU")
+        r5[2].metric("再プレ言質率",         g["再プレ言質率"],                     help="再プレ言質UU ÷ 再プレUU")
+        r5[3].metric("プレ成約率",           cz["プレ成約率"],                      help="契約UU ÷ プレUU")
+        r5[4].metric("プレ着座率(飛びのみ)",   cz["プレ着座率(リスケ含めない)"],    help="プレUU ÷（プレUU+プレ飛びUU）")
+        r5[5].metric("再プレ着座率(飛びのみ)", cz["再プレ着座率(リスケ含めない)"],  help="再プレUU ÷（再プレUU+再プレ飛びUU）")
+
+        r6 = st.columns(6)
+        r6[0].metric("プレ着座率(リスケ込)",   cz["プレ着座率"],   help="プレUU ÷（プレUU+プレ飛びUU+プレリスケUU）")
+        r6[1].metric("再プレ着座率(リスケ込)", cz["再プレ着座率"], help="再プレUU ÷（再プレUU+再プレ飛びUU+再プレリスケUU）")
 
         if selected_person == "全員" and not per_person_df.empty:
             with st.expander("👥 営業担当者別実績を見る"):
