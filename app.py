@@ -511,8 +511,8 @@ def check_metric_alerts(kpi: dict, ganchi: dict, chakuza: dict, thresholds: dict
         ("成約率",      kpi.get("成約率", "-")),
         ("プレ言質率",  ganchi.get("プレ言質率", "-")),
         ("再プレ言質率", ganchi.get("再プレ言質率", "-")),
-        ("プレ着座率",  chakuza.get("プレ着座率(リスケ含めない)", "-")),
-        ("再プレ着座率", chakuza.get("再プレ着座率(リスケ含めない)", "-")),
+        ("プレ着座率",  chakuza.get("プレ着座率", "-")),
+        ("再プレ着座率", chakuza.get("再プレ着座率", "-")),
         ("プレ成約率",  chakuza.get("プレ成約率", "-")),
     ]
     alerts = []
@@ -560,14 +560,15 @@ def render_alerts(kpi: dict, ganchi: dict, chakuza: dict, df_src: pd.DataFrame, 
 
         denom_seiyaku = pk["契約UU"] + pk["失注UU"] + pk["プレ飛びUU"] + pk["再プレ飛びUU"] + pk["契約飛びUU"]
         return {
-            "営業担当者":   person,
+            "営業担当者":    person,
+            "アポUU":        pk["アポUU"],
             "🚨アラート指標": "・".join(triggered),
-            "成約率":       _fmt(pk["契約UU"],     denom_seiyaku,         pk["成約率"]),
-            "プレ言質率":   _fmt(pg["プレ言質UU"], pk["プレUU"],          pg["プレ言質率"]),
-            "再プレ言質率": _fmt(pg["再プレ言質UU"], pk["再プレUU"],       pg["再プレ言質率"]),
-            "プレ着座率":   _fmt(pk["プレUU"],      pcz["プレ予定UU"],    pcz["プレ着座率(リスケ含めない)"]),
-            "再プレ着座率": _fmt(pk["再プレUU"],    pcz["再プレ予定UU"],  pcz["再プレ着座率(リスケ含めない)"]),
-            "プレ成約率":   _fmt(pk["契約UU"],      pk["プレUU"],          pcz["プレ成約率"]),
+            "成約率":        _fmt(pk["契約UU"],       denom_seiyaku,      pk["成約率"]),
+            "プレ言質率":    _fmt(pg["プレ言質UU"],   pk["プレUU"],       pg["プレ言質率"]),
+            "再プレ言質率":  _fmt(pg["再プレ言質UU"], pk["再プレUU"],     pg["再プレ言質率"]),
+            "プレ着座率②":  _fmt(pk["プレUU"],        pcz["プレ予定UU"],  pcz["プレ着座率"]),
+            "再プレ着座率②":_fmt(pk["再プレUU"],      pcz["再プレ予定UU"],pcz["再プレ着座率"]),
+            "プレ成約率":    _fmt(pk["契約UU"],        pk["プレUU"],       pcz["プレ成約率"]),
         }
 
     # ── 担当者別アラート ──────────────────────────
@@ -582,14 +583,15 @@ def render_alerts(kpi: dict, ganchi: dict, chakuza: dict, df_src: pd.DataFrame, 
         # 個人フィルター済みの場合
         metric_alerts = check_metric_alerts(kpi, ganchi, chakuza, thresholds)
         if metric_alerts:
+            st.info(f"アポUU：{kpi['アポUU']}")
             denom_seiyaku = kpi["契約UU"] + kpi["失注UU"] + kpi["プレ飛びUU"] + kpi["再プレ飛びUU"] + kpi["契約飛びUU"]
             details = {
-                "成約率":       _fmt(kpi["契約UU"],       denom_seiyaku,          kpi["成約率"]),
-                "プレ言質率":   _fmt(ganchi["プレ言質UU"], kpi["プレUU"],          ganchi["プレ言質率"]),
-                "再プレ言質率": _fmt(ganchi["再プレ言質UU"], kpi["再プレUU"],      ganchi["再プレ言質率"]),
-                "プレ着座率":   _fmt(kpi["プレUU"],        chakuza["プレ予定UU"], chakuza["プレ着座率(リスケ含めない)"]),
-                "再プレ着座率": _fmt(kpi["再プレUU"],      chakuza["再プレ予定UU"], chakuza["再プレ着座率(リスケ含めない)"]),
-                "プレ成約率":   _fmt(kpi["契約UU"],        kpi["プレUU"],          chakuza["プレ成約率"]),
+                "成約率":        _fmt(kpi["契約UU"],         denom_seiyaku,            kpi["成約率"]),
+                "プレ言質率":    _fmt(ganchi["プレ言質UU"],  kpi["プレUU"],            ganchi["プレ言質率"]),
+                "再プレ言質率":  _fmt(ganchi["再プレ言質UU"],kpi["再プレUU"],          ganchi["再プレ言質率"]),
+                "プレ着座率":    _fmt(kpi["プレUU"],          chakuza["プレ予定UU"],   chakuza["プレ着座率"]),
+                "再プレ着座率":  _fmt(kpi["再プレUU"],        chakuza["再プレ予定UU"], chakuza["再プレ着座率"]),
+                "プレ成約率":    _fmt(kpi["契約UU"],          kpi["プレUU"],            chakuza["プレ成約率"]),
             }
             for name, val, thr in metric_alerts:
                 st.error(f"🚨 **{name}** {details.get(name, val)}　（目標：{thr}% 以上）")
