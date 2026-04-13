@@ -561,14 +561,14 @@ def render_alerts(kpi: dict, ganchi: dict, chakuza: dict, df_src: pd.DataFrame, 
         denom_seiyaku = pk["契約UU"] + pk["失注UU"] + pk["プレ飛びUU"] + pk["再プレ飛びUU"] + pk["契約飛びUU"]
         return {
             "営業担当者":    person,
-            "アポUU":        pk["アポUU"],
             "🚨アラート指標": "・".join(triggered),
-            "成約率":        _fmt(pk["契約UU"],       denom_seiyaku,      pk["成約率"]),
             "プレ言質率":    _fmt(pg["プレ言質UU"],   pk["プレUU"],       pg["プレ言質率"]),
             "再プレ言質率":  _fmt(pg["再プレ言質UU"], pk["再プレUU"],     pg["再プレ言質率"]),
             "プレ着座率②":  _fmt(pk["プレUU"],        pcz["プレ予定UU"],  pcz["プレ着座率"]),
             "再プレ着座率②":_fmt(pk["再プレUU"],      pcz["再プレ予定UU"],pcz["再プレ着座率"]),
             "プレ成約率":    _fmt(pk["契約UU"],        pk["プレUU"],       pcz["プレ成約率"]),
+            "アポUU":        pk["アポUU"],
+            "成約率":        _fmt(pk["契約UU"],       denom_seiyaku,      pk["成約率"]),
         }
 
     # ── 担当者別アラート ──────────────────────────
@@ -576,7 +576,23 @@ def render_alerts(kpi: dict, ganchi: dict, chakuza: dict, df_src: pd.DataFrame, 
         rows = [r for r in (_person_row(p, g) for p, g in df_src.groupby("営業担当者")) if r]
         if rows:
             st.warning(f"🚨 {len(rows)}名の担当者でアラートが発生しています")
-            st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+            _df_alert = pd.DataFrame(rows)
+            _html = _df_alert.to_html(index=False, escape=False)
+            st.markdown("""
+<style>
+.alert-wrap { overflow-x: auto; max-height: 400px; }
+.alert-wrap table { border-collapse: collapse; white-space: nowrap; }
+.alert-wrap th, .alert-wrap td { padding: 6px 12px; border: 1px solid #555; font-size: 0.85rem; }
+.alert-wrap th:first-child, .alert-wrap td:first-child {
+    position: sticky; left: 0; z-index: 2;
+    background: #0e1117;
+    border-right: 2px solid #888;
+    font-weight: bold;
+}
+.alert-wrap th { background: #262730; }
+</style>
+""", unsafe_allow_html=True)
+            st.markdown(f'<div class="alert-wrap">{_html}</div>', unsafe_allow_html=True)
         else:
             st.success("✅ 全担当者アラートなし")
     else:
