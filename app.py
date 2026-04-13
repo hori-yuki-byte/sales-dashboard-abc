@@ -829,16 +829,20 @@ def main():
         # メトリクスラベルが切れないようにするCSS
         st.markdown("""
 <style>
-div[data-testid="stMetricLabel"] > div {
+div[data-testid="stMetricLabel"],
+div[data-testid="stMetricLabel"] > div,
+div[data-testid="stMetricLabel"] p {
     white-space: normal !important;
     overflow: visible !important;
     text-overflow: unset !important;
-    font-size: 0.78rem !important;
+    font-size: 0.75rem !important;
     line-height: 1.3 !important;
-    min-height: 2.2em;
+}
+div[data-testid="stMetric"] {
+    overflow: visible !important;
 }
 div[data-testid="stMetricValue"] {
-    font-size: 1.5rem !important;
+    font-size: 1.4rem !important;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -887,12 +891,12 @@ div[data-testid="stMetricValue"] {
         r5[1].metric("プレ言質率",           g["プレ言質率"],                       help="プレ言質UU ÷ プレUU")
         r5[2].metric("再プレ言質率",         g["再プレ言質率"],                     help="再プレ言質UU ÷ 再プレUU")
         r5[3].metric("プレ成約率",           cz["プレ成約率"],                      help="契約UU ÷ プレUU")
-        r5[4].metric("プレ着座率(飛びのみ)",   cz["プレ着座率(リスケ含めない)"],    help="プレUU ÷（プレUU+プレ飛びUU）")
-        r5[5].metric("再プレ着座率(飛びのみ)", cz["再プレ着座率(リスケ含めない)"],  help="再プレUU ÷（再プレUU+再プレ飛びUU）")
+        r5[4].metric("プレ着座率①",   cz["プレ着座率(リスケ含めない)"],    help="プレUU ÷（プレUU+プレ飛びUU）※リスケ除く")
+        r5[5].metric("再プレ着座率①", cz["再プレ着座率(リスケ含めない)"],  help="再プレUU ÷（再プレUU+再プレ飛びUU）※リスケ除く")
 
         r6 = st.columns(6)
-        r6[0].metric("プレ着座率(リスケ込)",   cz["プレ着座率"],   help="プレUU ÷（プレUU+プレ飛びUU+プレリスケUU）")
-        r6[1].metric("再プレ着座率(リスケ込)", cz["再プレ着座率"], help="再プレUU ÷（再プレUU+再プレ飛びUU+再プレリスケUU）")
+        r6[0].metric("プレ着座率②",   cz["プレ着座率"],   help="プレUU ÷（プレUU+プレ飛びUU+プレリスケUU）※リスケ込")
+        r6[1].metric("再プレ着座率②", cz["再プレ着座率"], help="再プレUU ÷（再プレUU+再プレ飛びUU+再プレリスケUU）※リスケ込")
 
         if selected_person == "全員" and not per_person_df.empty:
             with st.expander("👥 営業担当者別実績を見る"):
