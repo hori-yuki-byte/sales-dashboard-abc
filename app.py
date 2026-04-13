@@ -576,23 +576,7 @@ def render_alerts(kpi: dict, ganchi: dict, chakuza: dict, df_src: pd.DataFrame, 
         rows = [r for r in (_person_row(p, g) for p, g in df_src.groupby("営業担当者")) if r]
         if rows:
             st.warning(f"🚨 {len(rows)}名の担当者でアラートが発生しています")
-            _df_alert = pd.DataFrame(rows)
-            _html = _df_alert.to_html(index=False, escape=False)
-            st.markdown("""
-<style>
-.alert-wrap { overflow-x: auto; max-height: 400px; }
-.alert-wrap table { border-collapse: collapse; white-space: nowrap; }
-.alert-wrap th, .alert-wrap td { padding: 6px 12px; border: 1px solid #555; font-size: 0.85rem; }
-.alert-wrap th:first-child, .alert-wrap td:first-child {
-    position: sticky; left: 0; z-index: 2;
-    background: #0e1117;
-    border-right: 2px solid #888;
-    font-weight: bold;
-}
-.alert-wrap th { background: #262730; }
-</style>
-""", unsafe_allow_html=True)
-            st.markdown(f'<div class="alert-wrap">{_html}</div>', unsafe_allow_html=True)
+            st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
         else:
             st.success("✅ 全担当者アラートなし")
     else:
@@ -615,9 +599,10 @@ def render_alerts(kpi: dict, ganchi: dict, chakuza: dict, df_src: pd.DataFrame, 
             st.success("✅ アラートなし")
 
     # ── 次回予定7日以上空き ──────────────────────
+    st.divider()
     followup_df = get_followup_alerts(df_src)
     if not followup_df.empty:
-        with st.expander(f"⏰ 次回予定まで7日以上空いている顧客：{len(followup_df)}件", expanded=True):
+        with st.expander(f"⏰ 次回予定まで7日以上空いている顧客：{len(followup_df)}件", expanded=False):
             st.dataframe(followup_df, use_container_width=True, hide_index=True)
 
 
