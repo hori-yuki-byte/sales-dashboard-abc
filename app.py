@@ -829,11 +829,6 @@ def main():
         # メトリクスラベルが切れないようにするCSS
         st.markdown("""
 <style>
-div[data-testid="stMetric"] {
-    background: #f8f9fa;
-    border-radius: 8px;
-    padding: 10px 12px;
-}
 div[data-testid="stMetricLabel"] > div {
     white-space: normal !important;
     overflow: visible !important;
