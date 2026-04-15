@@ -660,8 +660,10 @@ def main():
         teams = load_teams()
         hidden_persons = set(teams.get("__hidden__", []))
 
-        # 非表示メンバーを除いた一覧をフィルター選択肢に使う
-        visible_persons = [p for p in all_persons if p not in hidden_persons]
+        # 保存済みメンバーも含めてフィルター選択肢を構築
+        all_saved_persons = set(m for t, ms in teams.items() if t != "__hidden__" for m in ms)
+        all_known_persons = sorted(set(all_persons) | all_saved_persons)
+        visible_persons = [p for p in all_known_persons if p not in hidden_persons]
         team_options = [f"【{t}】" for t in teams if t != "__hidden__"]
         selected_filter = st.selectbox(
             "フィルター（チーム / 個人）",
