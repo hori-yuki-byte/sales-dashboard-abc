@@ -681,7 +681,10 @@ def main():
                 )
                 if team_action == "新規作成":
                     new_name = st.text_input("チーム名", key="new_team_name")
-                    new_members = st.multiselect("メンバー", visible_persons, key="new_team_members")
+                    # 全チームの保存済みメンバーも含めて選択肢を作る
+                    all_saved = set(m for t, ms in teams.items() if t != "__hidden__" for m in ms)
+                    new_member_options = sorted(set(all_persons) | all_saved)
+                    new_members = st.multiselect("メンバー", new_member_options, key="new_team_members")
                     if st.button("作成", key="create_team") and new_name:
                         if new_name not in teams:
                             teams[new_name] = new_members
@@ -691,10 +694,13 @@ def main():
                         else:
                             st.warning("同じ名前のチームがすでに存在します")
                 else:
-                    current = [m for m in teams.get(team_action, []) if m in all_persons]
+                    # 保存済みメンバー + データから取得したメンバーを合わせて選択肢にする
+                    saved_members = teams.get(team_action, [])
+                    member_options = sorted(set(all_persons) | set(saved_members))
+                    current = [m for m in saved_members if m in member_options]
                     updated_members = st.multiselect(
                         "メンバー（変更して保存）",
-                        all_persons,
+                        member_options,
                         default=current,
                         key=f"edit_team_{team_action}",
                     )
