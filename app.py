@@ -643,7 +643,7 @@ def main():
         st.divider()
         page = st.radio(
             "ページ",
-            ["📈 ダッシュボード", "👥 チーム比較", "📅 予定管理"],
+            ["📈 ダッシュボード", "👥 チーム比較", "📅 予定管理", "🔁 リスケ分析"],
             horizontal=True,
             key="page_select",
         )
@@ -1402,6 +1402,123 @@ div[data-testid="stMetricValue"] {
                         st.dataframe(style_rows(disp), use_container_width=True, hide_index=True)
 
 
+
+
+    # =============================================
+    # ページ4：リスケ分析
+    # =============================================
+    elif page == "🔁 リスケ分析":
+        st.markdown("## 🔁 リスケ分析")
+        st.caption("プレ・再プレのリスケが2回以上ある顧客（契約・失注除外）を一覧表示します")
+
+        df_raw = st.session_state.get("df_cache", pd.DataFrame())
+        if df_raw.empty or "報告種別" not in df_raw.columns:
+            st.warning("データを取得してください")
+        else:
+            df_r = df_raw.copy()
+
+            # 契約・失注済みの顧客IDを除外
+            if "顧客ID" in df_r.columns and "結果" in df_r.columns:
+                ended_mask = (
+                    get_col(df_r, "結果").str.contains(CONTRACT_PATTERN, na=False, regex=True)
+                    | get_col(df_r, "結果").str.contains(LOST_PATTERN,    na=False, regex=True)
+                )
+                ended_ids = set(get_col(df_r[ended_mask], "顧客ID"))
+                df_r = df_r[~get_col(df_r, "顧客ID").isin(ended_ids)]
+
+            # プレリスケ行・再プレリスケ行を抽出
+            riske_ketsu = get_col(df_r, "結果").str.contains(PRE_RESCHEDULED_PATTERN, na=False, regex=True)
+            pre_riske_df    = df_r[get_col(df_r, "報告種別").str.contains(PRE_PATTERN,    na=False, regex=True) & riske_ketsu].copy()
+            re_pre_riske_df = df_r[get_col(df_r, "報告種別").str.contains(RE_PRE_PATTERN, na=False, regex=True) & riske_ketsu].copy()
+
+            if pre_riske_df.empty and re_pre_riske_df.empty:
+                st.info("該当する顧客はいません")
+            else:
+                # 顧客ごとのリスケ回数を集計
+                pre_counts    = pre_riske_df.groupby("顧客ID").size().rename("プレリスケ回数")
+                re_pre_counts = re_pre_riske_df.groupby("顧客ID").size().rename("再プレリスケ回数")
+
+                counts_df = pd.DataFrame(pre_counts).join(pd.DataFrame(re_pre_counts), how="outer").fillna(0)
+                counts_df["プレリスケ回数"]    = counts_df["プレリスケ回数"].astype(int)
+                counts_df["再プレリスケ回数"]  = counts_df["再プレリスケ回数"].astype(int)
+
+                # 2回以上に絞り込み
+                counts_df = counts_df[(counts_df["プレリスケ回数"] >= 2) | (counts_df["再プレリスケ回数"] >= 2)]
+
+                if counts_df.empty:
+                    st.info("リスケが2回以上の顧客はいません")
+                else:
+                    # 全リスケ行を結合して最新リスケ情報を取得
+                    all_riske = pd.concat([pre_riske_df, re_pre_riske_df]).sort_values("営業日")
+                    latest_riske = all_riske.groupby("顧客ID").last().reset_index()[
+                        ["顧客ID", "報告種別", "営業日", "次回アクション日"]
+                    ].rename(columns={
+                        "報告種別":       "最新リスケ種別",
+                        "営業日":         "最新リスケ営業日",
+                        "次回アクション日": "次回予定日",
+                    })
+                    latest_riske["次回予定日"] = pd.to_datetime(latest_riske["次回予定日"], errors="coerce")
+
+                    # 顧客名・担当者を取得（最新行）
+                    meta = df_raw.sort_values("営業日").groupby("顧客ID").last().reset_index()[
+                        [c for c in ["顧客ID", "顧客名", "営業担当者"] if c in df_raw.columns]
+                    ]
+
+                    # 空き日数の計算
+                    # プレリスケ → アポの営業日 〜 次回予定日
+                    # 再プレリスケ → プレの営業日 〜 次回予定日
+                    def get_base_date(cid, latest_kind):
+                        if re.search(RE_PRE_PATTERN, str(latest_kind)):
+                            # 再プレリスケ: その顧客の最新プレ行の営業日
+                            pre_rows = df_raw[
+                                (get_col(df_raw, "顧客ID") == cid) &
+                                get_col(df_raw, "報告種別").str.contains(PRE_PATTERN, na=False, regex=True)
+                            ]
+                            return pre_rows["営業日"].max() if not pre_rows.empty else pd.NaT
+                        else:
+                            # プレリスケ: その顧客の最新アポ行の営業日
+                            apo_rows = df_raw[
+                                (get_col(df_raw, "顧客ID") == cid) &
+                                get_col(df_raw, "報告種別").str.contains(APO_PATTERN, na=False, regex=True)
+                            ]
+                            return apo_rows["営業日"].max() if not apo_rows.empty else pd.NaT
+
+                    latest_riske["基準日"] = latest_riske.apply(
+                        lambda row: get_base_date(row["顧客ID"], row["最新リスケ種別"]), axis=1
+                    )
+                    latest_riske["空き日数"] = (latest_riske["次回予定日"] - latest_riske["基準日"]).dt.days
+
+                    # 全部結合
+                    result = counts_df.reset_index().merge(latest_riske, on="顧客ID").merge(meta, on="顧客ID", how="left")
+
+                    # 表示列を整理
+                    show = [c for c in [
+                        "顧客名", "営業担当者",
+                        "プレリスケ回数", "再プレリスケ回数",
+                        "最新リスケ種別", "最新リスケ営業日", "次回予定日", "空き日数"
+                    ] if c in result.columns]
+
+                    result = result[show].sort_values(
+                        ["プレリスケ回数", "再プレリスケ回数"], ascending=False
+                    ).reset_index(drop=True)
+
+                    # 担当者フィルター
+                    persons_in_result = sorted(result["営業担当者"].dropna().unique().tolist()) if "営業担当者" in result.columns else []
+                    sel_person = st.selectbox("担当者フィルター", ["全員"] + persons_in_result, key="riske_person_filter")
+                    if sel_person != "全員":
+                        result = result[result["営業担当者"] == sel_person]
+
+                    st.markdown(f"**{len(result)}件**（プレ or 再プレリスケ2回以上・未契約・未失注）")
+
+                    # 空き日数が長い行をオレンジで強調
+                    def style_riske(df_disp):
+                        def row_style(row):
+                            if "空き日数" in row.index and pd.notna(row["空き日数"]) and row["空き日数"] >= 14:
+                                return ["background-color: #FFE0B2; color: #000"] * len(row)
+                            return [""] * len(row)
+                        return df_disp.style.apply(row_style, axis=1)
+
+                    st.dataframe(style_riske(result), use_container_width=True, hide_index=True)
 
 
 if __name__ == "__main__":
