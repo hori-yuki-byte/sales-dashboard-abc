@@ -1409,13 +1409,24 @@ div[data-testid="stMetricValue"] {
     # =============================================
     elif page == "🔁 リスケ分析":
         st.markdown("## 🔁 リスケ分析")
-        st.caption("プレ・再プレのリスケが2回以上ある顧客（契約・失注除外）を一覧表示します")
+        st.caption("前月・当月・翌月に営業があり、プレ/再プレのリスケが2回以上ある顧客（契約・失注除外）を一覧表示します")
 
         df_raw = st.session_state.get("df_cache", pd.DataFrame())
         if df_raw.empty or "報告種別" not in df_raw.columns:
             st.warning("データを取得してください")
         else:
             df_r = df_raw.copy()
+
+            # 前月・当月・翌月に営業した顧客IDのみ対象
+            _now = pd.Timestamp.now().normalize()
+            _prev_month_start = (_now.replace(day=1) - pd.DateOffset(months=1))
+            _next_month_end   = (_now.replace(day=1) + pd.DateOffset(months=2) - pd.DateOffset(days=1))
+            if "営業日" in df_r.columns:
+                _active_ids = set(get_col(
+                    df_r[(df_r["営業日"] >= _prev_month_start) & (df_r["営業日"] <= _next_month_end)],
+                    "顧客ID"
+                ))
+                df_r = df_r[get_col(df_r, "顧客ID").isin(_active_ids)]
 
             # 契約・失注済みの顧客IDを除外
             if "顧客ID" in df_r.columns and "結果" in df_r.columns:
