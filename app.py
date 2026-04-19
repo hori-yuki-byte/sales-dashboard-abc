@@ -78,6 +78,7 @@ DEFAULT_THRESHOLDS = {
 }
 
 
+@st.cache_data(ttl=5)
 def load_teams() -> dict:
     """teams.json からチーム定義を読み込む"""
     if TEAMS_FILE.exists():
@@ -90,8 +91,10 @@ def save_teams(teams: dict):
     """チーム定義を teams.json に保存する"""
     with open(TEAMS_FILE, "w", encoding="utf-8") as f:
         json.dump(teams, f, ensure_ascii=False, indent=2)
+    load_teams.clear()
 
 
+@st.cache_data(ttl=5)
 def load_settings() -> dict:
     """settings.json からアラート設定を読み込む"""
     if SETTINGS_FILE.exists():
@@ -104,6 +107,7 @@ def save_settings(settings: dict):
     """アラート設定を settings.json に保存する"""
     with open(SETTINGS_FILE, "w", encoding="utf-8") as f:
         json.dump(settings, f, ensure_ascii=False, indent=2)
+    load_settings.clear()
 
 
 # =============================================
@@ -543,37 +547,41 @@ def get_followup_alerts(df: pd.DataFrame, days: int = 7) -> pd.DataFrame:
     return result[show].sort_values("空き日数", ascending=False)
 
 
-def render_alerts(kpi: dict, ganchi: dict, chakuza: dict, df_src: pd.DataFrame, thresholds: dict):
+def render_alerts(kpi: dict, ganchi: dict, chakuza: dict, df_src: pd.DataFrame, thresholds: dict, per_person_df: pd.DataFrame = None):
     """担当者ごとのアラートバナーと次回予定空き顧客リストを描画する"""
 
     def _fmt(numerator, denominator, pct_str):
         """「率（分子/分母）」形式の文字列を返す"""
         return f"{pct_str}（{numerator}/{denominator}）"
 
-    def _person_row(person, grp):
-        pk  = calc_kpi(grp)
-        pg  = calc_ganchi(grp)
-        pcz = calc_chakuza(grp)
-        triggered = [name for name, _, _ in check_metric_alerts(pk, pg, pcz, thresholds)]
+    def _person_row_from_df(row):
+        """calc_per_personの結果行からアラート行を生成（再計算なし）"""
+        pk  = row.to_dict()
+        pg  = {"プレ言質UU": pk.get("プレ言質UU", 0), "再プレ言質UU": pk.get("再プレ言質UU", 0),
+               "プレ言質率": pk.get("プレ言質率", "-"), "再プレ言質率": pk.get("再プレ言質率", "-")}
+        pcz_pre   = calc_chakuza(df_src[df_src["営業担当者"] == pk["営業担当者"]]) if "営業担当者" in df_src.columns else {}
+        triggered = [name for name, _, _ in check_metric_alerts(pk, pg, pcz_pre, thresholds)]
         if not triggered:
-            return None  # アラートなしはスキップ
-
-        denom_seiyaku = pk["契約UU"] + pk["失注UU"] + pk["プレ飛びUU"] + pk["再プレ飛びUU"] + pk["契約飛びUU"]
+            return None
+        denom_seiyaku = pk.get("契約UU", 0) + pk.get("失注UU", 0) + pk.get("プレ飛びUU", 0) + pk.get("再プレ飛びUU", 0) + pk.get("契約飛びUU", 0)
         return {
             "🚨アラート指標": "・".join(triggered),
-            "営業担当者":    person,
-            "プレ言質率":    _fmt(pg["プレ言質UU"],   pk["プレUU"],       pg["プレ言質率"]),
-            "再プレ言質率":  _fmt(pg["再プレ言質UU"], pk["再プレUU"],     pg["再プレ言質率"]),
-            "プレ着座率②":  _fmt(pk["プレUU"],        pcz["プレ予定UU"],  pcz["プレ着座率"]),
-            "再プレ着座率②":_fmt(pk["再プレUU"],      pcz["再プレ予定UU"],pcz["再プレ着座率"]),
-            "プレ成約率":    _fmt(pk["契約UU"],        pk["プレUU"],       pcz["プレ成約率"]),
-            "アポUU":        pk["アポUU"],
-            "成約率":        _fmt(pk["契約UU"],       denom_seiyaku,      pk["成約率"]),
+            "営業担当者":    pk["営業担当者"],
+            "プレ言質率":    _fmt(pg["プレ言質UU"],   pk.get("プレUU", 0),        pg["プレ言質率"]),
+            "再プレ言質率":  _fmt(pg["再プレ言質UU"], pk.get("再プレUU", 0),      pg["再プレ言質率"]),
+            "プレ着座率②":  _fmt(pk.get("プレUU", 0), pcz_pre.get("プレ予定UU", 0),  pcz_pre.get("プレ着座率", "-")),
+            "再プレ着座率②":_fmt(pk.get("再プレUU", 0),pcz_pre.get("再プレ予定UU", 0),pcz_pre.get("再プレ着座率", "-")),
+            "プレ成約率":    _fmt(pk.get("契約UU", 0), pk.get("プレUU", 0),        pcz_pre.get("プレ成約率", "-")),
+            "アポUU":        pk.get("アポUU", 0),
+            "成約率":        _fmt(pk.get("契約UU", 0), denom_seiyaku,              pk.get("成約率", "-")),
         }
 
     # ── 担当者別アラート ──────────────────────────
     if "営業担当者" in df_src.columns and df_src["営業担当者"].nunique() > 1:
-        rows = [r for r in (_person_row(p, g) for p, g in df_src.groupby("営業担当者")) if r]
+        if per_person_df is not None and not per_person_df.empty:
+            rows = [r for r in (_person_row_from_df(row) for _, row in per_person_df.iterrows()) if r]
+        else:
+            rows = [r for r in (_person_row_from_df(row) for _, row in calc_per_person(df_src).iterrows()) if r]
         if rows:
             st.warning(f"🚨 {len(rows)}名の担当者でアラートが発生しています")
             st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
@@ -860,7 +868,7 @@ div[data-testid="stMetricValue"] {
 
         # アラートバナー
         with st.expander("🚨 アラート確認", expanded=True):
-            render_alerts(kpi, g, cz, df_person, thresholds)
+            render_alerts(kpi, g, cz, df_person, thresholds, per_person_df)
 
         # ── ① アポ・ブリッジ ────────────────────────────
         st.caption("① アポ・ブリッジ")
@@ -945,10 +953,11 @@ div[data-testid="stMetricValue"] {
         else:
             df_hassei_src = df_all[df_all["営業担当者"] == selected_person]
 
-        h_kpi = calc_kpi_hassei(df_hassei_src, h_start, h_end)
+        h_df_after, h_apo_uu = build_hassei_df(df_hassei_src, h_start, h_end)
+        h_kpi = calc_kpi(h_df_after) if not h_df_after.empty else {k: 0 for k in ["アポUU","プレUU","再プレUU","プレ飛びUU","再プレ飛びUU","契約飛びUU","契約UU","次回契約予定UU","失注UU","成約率","total_uu","プレリスケUU","再プレリスケUU","ブリッジUU","ブリッジ率","契約リスケUU"]}
+        if not h_df_after.empty:
+            h_kpi["アポUU"] = h_apo_uu
         h_per_person = calc_per_person_hassei(df_all, h_start, h_end) if selected_person == "全員" else pd.DataFrame()
-
-        h_df_after, _ = build_hassei_df(df_hassei_src, h_start, h_end)
         h_g = calc_ganchi(h_df_after) if not h_df_after.empty else {"プレ言質UU": 0, "再プレ言質UU": 0, "プレ言質率": "-", "再プレ言質率": "-"}
 
         st.subheader(f"KPIサマリー（{h_label} / {person_label}）")
