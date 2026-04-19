@@ -27,8 +27,8 @@ st.set_page_config(
 # 商談ログ②の固定接続先
 DEFAULT_SHEET_URL = (
     "https://docs.google.com/spreadsheets/d/"
-    "1VAb_viGsONfjz04wLOU6M1JHNdApKGmiEE80Nuc5DvY"
-    "/export?format=csv&gid=1838854196"
+    "1i9sCu17ubKxWDV-k2zW8zDNg1Zb1Alm9M05RjjUQ9nM"
+    "/export?format=csv&gid=183885496"
 )
 
 # ---- 各指標の定義 ----
