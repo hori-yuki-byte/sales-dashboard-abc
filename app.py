@@ -15,7 +15,7 @@ DATE_MIN = _date(2016, 1, 1)
 DATE_MAX = _date(2036, 12, 31)
 
 st.set_page_config(
-    page_title="商談ログ分析ダッシュボード",
+    page_title="メディフリ商談ログ分析ダッシュボード",
     page_icon="📊",
     layout="wide"
 )
@@ -621,7 +621,7 @@ def render_alerts(kpi: dict, ganchi: dict, chakuza: dict, df_src: pd.DataFrame, 
 # =============================================
 
 def main():
-    st.title("📊 商談ログ分析ダッシュボード")
+    st.title("📊 メディフリ商談ログ分析ダッシュボード")
     st.caption("スプレッドシートからCSVをエクスポートして読み込んでください")
 
     # サイドバー
