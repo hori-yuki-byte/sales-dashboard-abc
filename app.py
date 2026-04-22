@@ -144,8 +144,14 @@ def _assign_cols(df: pd.DataFrame) -> pd.DataFrame:
 def _parse_csv(raw: str) -> pd.DataFrame:
     """CSV文字列をDataFrameに変換。ヘッダーなしも自動判定"""
     df = pd.read_csv(io.StringIO(raw))
-    if re.match(r"\d{4}[/\-]\d{2}", str(df.columns[0])):
+    first_col = str(df.columns[0])
+    if re.match(r"\d{4}[/\-]\d{2}", first_col):
+        # ヘッダーなし（1行目がデータ）
         df = pd.read_csv(io.StringIO(raw), header=None)
+        df = _assign_cols(df)
+    elif "営業日" not in df.columns:
+        # 1行目が独自ヘッダー（例：「上書き禁止」）→スキップしてSHEET_COLSを使用
+        df = pd.read_csv(io.StringIO(raw), header=None, skiprows=1)
         df = _assign_cols(df)
     return df
 
