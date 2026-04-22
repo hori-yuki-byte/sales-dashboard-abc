@@ -28,7 +28,7 @@ st.set_page_config(
 DEFAULT_SHEET_URL = (
     "https://docs.google.com/spreadsheets/d/e/"
     "2PACX-1vT1EiXchv2Bn00fLffFw88QKr6Kxfsr01DyrhiutRDMoVEZq_jOvFzvzTIe97TAMxdK0NIfDsI3kM3b"
-    "/pub?output=csv"
+    "/pub?gid=1838854196&single=true&output=csv"
 )
 
 # ---- 各指標の定義 ----
