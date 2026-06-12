@@ -34,7 +34,7 @@ DEFAULT_SHEET_URL = st.secrets.get("DEFAULT_SHEET_URL", "")
 # 再プレUU  : 報告種別 が「再プレ」と完全一致
 # プレ飛びUU: 報告種別 に「プレ飛び」を含む
 # 契約UU    : 結果 が「契約」と完全一致
-# 次回契約予定UU: 結果 が「次回契約予定」を含む
+# 次回契約予定UU: 結果 が「契約予定日程確定」を含む
 # 失注UU    : プレ飛び・再プレ飛び・失注（報告種別 or 結果）
 APO_PATTERN              = r"^アポ$"
 PRE_PATTERN              = r"^プレ$"
@@ -42,19 +42,19 @@ RE_PRE_PATTERN           = r"^再プレ$"
 PRE_NOSHOWN_PATTERN      = r"(?<!再)プレ飛び"
 RE_PRE_NOSHOWN_PATTERN   = r"再プレ飛び"
 CONTRACT_PATTERN         = r"^契約$"
-NEXT_CONTRACT_PATTERN    = r"次回契約予定"
+NEXT_CONTRACT_PATTERN    = r"契約予定日程確定"  # 結果（メディフリ語彙）
 LOST_PATTERN             = r"^失注$"
 PRE_RESCHEDULED_PATTERN  = r"リスケ日程不明|リスケ日程確定"
-CONTRACT_NOSHOWN_PATTERN = r"契約予定飛び"   # 報告種別
-CONTRACT_ADJUST_PATTERN  = r"契約予定調整"   # 報告種別 + 結果=失注
+CONTRACT_NOSHOWN_PATTERN = r"契約予定飛び"          # 報告種別
+CONTRACT_ADJUST_PATTERN  = r"契約予定日程調整結果"  # 報告種別（メディフリ語彙）+ 結果=失注
 
 # プレUU・再プレUUから除外する結果値
 PRE_EXCLUDE_RESULTS = [PRE_RESCHEDULED_PATTERN, "^プレ日程確定$"]  # 「再プレ日程確定」は除外しない
 
 # ヘッダーなしCSVに付ける列名（順番はスプレッドシートの列順と一致）
 SHEET_COLS = [
-    "タイムスタンプ", "顧客ID", "顧客名", "営業担当者",
-    "営業日", "報告種別", "結果", "次回アクション",
+    "タイムスタンプ", "営業担当者", "顧客ID", "顧客名",
+    "報告種別", "営業日", "結果", "次回アクション",
     "次回アクション日", "zoom録画"
 ]
 
