@@ -34,7 +34,7 @@ DEFAULT_SHEET_URL = st.secrets.get("DEFAULT_SHEET_URL", "")
 # 再プレUU  : 報告種別 が「再プレ」と完全一致
 # プレ飛びUU: 報告種別 に「プレ飛び」を含む
 # 契約UU    : 結果 が「契約」と完全一致
-# 次回契約予定UU: 結果 が「契約予定日程確定」を含む
+# 次回契約予定UU: 報告種別 が「契約予定」と完全一致（メディフリ語彙）
 # 失注UU    : プレ飛び・再プレ飛び・失注（報告種別 or 結果）
 APO_PATTERN              = r"^アポ$"
 PRE_PATTERN              = r"^プレ$"
@@ -42,7 +42,7 @@ RE_PRE_PATTERN           = r"^再プレ$"
 PRE_NOSHOWN_PATTERN      = r"(?<!再)プレ飛び"
 RE_PRE_NOSHOWN_PATTERN   = r"再プレ飛び"
 CONTRACT_PATTERN         = r"^契約$"
-NEXT_CONTRACT_PATTERN    = r"契約予定日程確定"  # 結果（メディフリ語彙）
+NEXT_CONTRACT_PATTERN    = r"^契約予定$"  # 報告種別（メディフリ語彙）
 LOST_PATTERN             = r"^失注$"
 PRE_RESCHEDULED_PATTERN  = r"リスケ日程不明|リスケ日程確定"
 CONTRACT_NOSHOWN_PATTERN = r"契約予定飛び"          # 報告種別
@@ -251,7 +251,7 @@ def calc_kpi(df):
                               exclude_col="結果", exclude_patterns=PRE_EXCLUDE_RESULTS)
     kpi["プレ飛びUU"]   = col_uu(df, "報告種別", PRE_NOSHOWN_PATTERN, regex=True)
     kpi["契約UU"]         = col_uu(df, "結果", CONTRACT_PATTERN, regex=True)
-    kpi["次回契約予定UU"] = col_uu(df, "結果", r"次回契約予定|契約予定日程確定", regex=True)
+    kpi["次回契約予定UU"] = col_uu(df, "報告種別", NEXT_CONTRACT_PATTERN, regex=True)
 
     # 失注UU：失注のみ（プレ飛び・再プレ飛びは独立指標として分離）
     lost_ids = set()
@@ -1120,10 +1120,9 @@ div[data-testid="stMetricValue"] {
                     else:
                         target_ids = set(get_col(last_row[~last_row["is_pre"]], "顧客ID"))
                     ganchi_mask = (
-                        get_col(d_df, "結果").str.contains(CONTRACT_PATTERN,      na=False, regex=True)
-                        | get_col(d_df, "結果").str.contains(NEXT_CONTRACT_PATTERN, na=False, regex=True)
-                        | get_col(d_df, "結果").str.contains(r"契約予定", na=False, regex=True)
-                    ) if "結果" in d_df.columns else pd.Series(False, index=d_df.index)
+                        get_col(d_df, "結果").str.contains(CONTRACT_PATTERN, na=False, regex=True)
+                        | get_col(d_df, "報告種別").str.contains(NEXT_CONTRACT_PATTERN, na=False, regex=True)
+                    ) if "結果" in d_df.columns and "報告種別" in d_df.columns else pd.Series(False, index=d_df.index)
                     ganchi_ids = set(get_col(d_df[ganchi_mask], "顧客ID")) if "顧客ID" in d_df.columns else set()
                     hit_ids = target_ids & ganchi_ids
                     st.write(f"**{debug_metric}UU：{len(hit_ids)}件**　（最後のプレ/再プレ該当：{len(target_ids)}件 × 契約言質あり：{len(ganchi_ids)}件）")
@@ -1321,7 +1320,8 @@ div[data-testid="stMetricValue"] {
             df_sch = df_sch.dropna(subset=["次回アクション日"])
 
             # 予定種別を判定する列を追加（ベクトル化）
-            # 結果：プレ日程確定→プレ予定 / 再プレ日程確定→再プレ予定 / 次回契約予定→契約予定
+            # 結果：プレ日程確定→プレ予定 / 再プレ日程確定→再プレ予定
+            # 報告種別：契約予定→契約予定（メディフリ語彙）
             # 結果：リスケ日程確定 → 報告種別がプレ→プレ予定 / 再プレ→再プレ予定
             _ketsu = df_sch["結果"].fillna("").astype(str)
             _hoko  = df_sch["報告種別"].fillna("").astype(str) if "報告種別" in df_sch.columns else pd.Series("", index=df_sch.index)
@@ -1329,7 +1329,7 @@ div[data-testid="stMetricValue"] {
             _conditions = [
                 _ketsu.str.contains("プレ日程確定", na=False) & ~_ketsu.str.contains("再プレ", na=False),
                 _ketsu.str.contains("再プレ日程確定", na=False),
-                _ketsu.str.contains("次回契約予定", na=False),
+                _hoko == "契約予定",
                 _riske & (_hoko == "再プレ"),
                 _riske & (_hoko == "プレ"),
             ]
