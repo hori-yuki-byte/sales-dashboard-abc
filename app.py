@@ -139,10 +139,12 @@ def _assign_cols(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def _parse_csv(raw: str) -> pd.DataFrame:
-    """CSV文字列をDataFrameに変換。ヘッダーなしも自動判定"""
-    df = pd.read_csv(io.StringIO(raw))
+    """CSV文字列をDataFrameに変換。ヘッダーなし・先頭の警告行も自動判定"""
+    # 先頭が「上書き禁止」などの注意書きセルなら1行スキップ
+    skip = 1 if raw.lstrip().startswith("上書き禁止") else 0
+    df = pd.read_csv(io.StringIO(raw), skiprows=skip)
     if re.match(r"\d{4}[/\-]\d{2}", str(df.columns[0])):
-        df = pd.read_csv(io.StringIO(raw), header=None)
+        df = pd.read_csv(io.StringIO(raw), skiprows=skip, header=None)
         df = _assign_cols(df)
     return df
 
